@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1230">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Countdown">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="apple-touch-icon.png">
 <title>Park Day Countdown</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -12,19 +20,25 @@
     --ink:#f4f1ea; --mute:#b8b6d0; --gold:#f2c46d; --mint:#6fe0b4; --amber:#f5a352; --rose:#ff7b8a;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);
+  html{background:#0e1230;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{margin:0;-webkit-tap-highlight-color:transparent;font-family:Inter,system-ui,sans-serif;color:var(--ink);
     background:radial-gradient(1200px 600px at 50% -200px,#3a2f7a 0%,transparent 70%),linear-gradient(180deg,var(--bg),var(--bg2));
-    min-height:100vh}
-  .wrap{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+    min-height:100vh;min-height:100dvh;background-attachment:fixed}
+  .wrap{max-width:760px;margin:0 auto;padding:calc(20px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(90px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}
   h1,h2{font-family:Fraunces,serif;margin:0}
   h2{font-size:1.15rem;margin-bottom:10px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:16px;backdrop-filter:blur(6px)}
+  .card{background:#1d2150e6;border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:16px;position:relative;z-index:1}
   .muted{color:var(--mute);font-size:.88rem}
   button,.btn{font:inherit;cursor:pointer;border:1px solid var(--line);background:#ffffff14;color:var(--ink);
     padding:8px 14px;border-radius:999px}
   button.primary{background:var(--gold);color:#1b1640;border-color:var(--gold);font-weight:600}
   button:disabled{opacity:.5;cursor:default}
-  input,select{font:inherit;color:var(--ink);background:#00000033;border:1px solid var(--line);border-radius:10px;padding:9px 10px;width:100%}
+  input,select{font:inherit;font-size:16px;color:var(--ink);background:#00000033;border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-height:46px;-webkit-appearance:none;appearance:none;display:block}
+  input[type=date],input[type=time]{text-align:left;line-height:24px}
+  input::-webkit-date-and-time-value{text-align:left}
+  input[type=checkbox]{-webkit-appearance:auto;appearance:auto;min-height:0;width:18px;height:18px;display:inline-block;accent-color:var(--gold)}
+  select{background-image:linear-gradient(45deg,transparent 50%,var(--mute) 50%),linear-gradient(135deg,var(--mute) 50%,transparent 50%);background-position:calc(100% - 20px) 50%,calc(100% - 14px) 50%;background-size:6px 6px;background-repeat:no-repeat;padding-right:36px}
+  button{-webkit-appearance:none;appearance:none;touch-action:manipulation}
   label{display:block;font-size:.8rem;color:var(--mute);margin:10px 0 4px}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -81,13 +95,15 @@
   .flag{transform-box:fill-box;transform-origin:left center;animation:wave 2.4s ease-in-out infinite}
   @keyframes wave{0%,100%{transform:skewY(0)}50%{transform:skewY(-12deg) scaleX(.85)}}
   .balloons{position:fixed;inset:0;pointer-events:none;z-index:-1;overflow:hidden}
-  .balloon{position:absolute;bottom:-90px;width:34px;opacity:.55;animation:rise linear infinite}
+  .balloon{position:absolute;bottom:-90px;width:30px;opacity:.4;will-change:transform;animation:rise linear infinite}
   @keyframes rise{to{transform:translate(var(--dx),-120vh) rotate(var(--rot))}}
   .hero{position:relative;z-index:1}
   @media (prefers-reduced-motion:reduce){.fw,.tw,.win,.flag,.balloon{animation:none}.fw{opacity:.8;transform:none}.balloons{display:none}}
 
   /* ---- ride art + ticker ---- */
-  .tabs{margin-top:10px;position:sticky;top:0;z-index:5;padding:8px 0;background:linear-gradient(180deg,var(--bg) 70%,transparent)}
+  .tabs{margin-top:10px;padding:6px 0;scrollbar-width:none}
+  [hidden]{display:none!important}
+  .tabs::-webkit-scrollbar{display:none}
   .thumb{width:48px;height:48px;border-radius:12px;overflow:hidden;flex:none;position:relative;background:#00000030;border:1px solid var(--line)}
   .thumb svg,.thumb img,.tk-img svg,.tk-img img{width:100%;height:100%;display:block;object-fit:cover}
   button.thumb{padding:0;cursor:pointer}
@@ -104,6 +120,7 @@
   .tk-name{font-weight:600;font-size:.92rem;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em}
   .tk-park{color:var(--mute);font-size:.75rem;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ticker-empty{padding:14px 0 4px}
+  .ticker.empty{margin:0;-webkit-mask-image:none;mask-image:none;overflow:visible}
   @media (prefers-reduced-motion:reduce){.tk-track{animation:none}.ticker{overflow-x:auto}}
 </style>
 </head>
@@ -554,6 +571,7 @@ async function renderTicker(force){
   const box = $("#ticker"); if (!box) return;
   const parkIds = Object.keys(state.parks).filter(id => (state.favs[id] || []).length);
   if (!parkIds.length){
+    box.classList.add("empty");
     box.innerHTML = `<div class="ticker-empty muted">Star your favorite rides and they'll scroll by here with live waits.<div style="margin-top:10px"><button onclick="showTab('pick')">Pick parks &amp; rides</button></div></div>`;
     $("#tickerUpdated").textContent = ""; return;
   }
@@ -565,6 +583,7 @@ async function renderTicker(force){
     } catch(e){ failed++; }
   }));
   if (!items.length){
+    box.classList.add("empty");
     box.innerHTML = `<div class="ticker-empty muted">${failed ? "Couldn't reach the wait-time service. It'll try again in a few minutes." : "None of your picks are reporting right now."}</div>`;
     return;
   }
@@ -573,6 +592,7 @@ async function renderTicker(force){
     <div class="tk-body"><div class="tk-name">${esc(r.name)}</div><div class="tk-park">${esc(park)}</div></div></div>`;
   const reps = Math.max(1, Math.ceil(6 / items.length));
   const set = items.map(card).join("").repeat(reps);
+  box.classList.remove("empty");
   box.innerHTML = `<div class="tk-track" style="--dur:${items.length * reps * 4.5}s">${set}${set}</div>`;
   box.onclick = () => box.classList.toggle("paused");
   $("#tickerUpdated").textContent = "Updated " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });

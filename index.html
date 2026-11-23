@@ -237,6 +237,17 @@
     <div id="pickerList"></div>
   </section>
 
+  <section class="card" data-panel="pick" hidden>
+    <h2>Picture packs</h2>
+    <p class="muted" style="margin-top:0">Add lots of ride pictures at once: pick several images, or a <b>.zip</b> of them. Each picture is matched to a ride by its file name, like <code>haunted-mansion.jpg</code>. Pictures stay in this browser only.</p>
+    <div class="row">
+      <button class="primary" id="packBtn">Upload pictures</button>
+      <button id="packClear" hidden>Remove pack pictures</button>
+    </div>
+    <div id="packStatus" class="muted" style="margin-top:10px"></div>
+    <input type="file" id="packInput" accept="image/*,.zip,application/zip" multiple hidden>
+  </section>
+
   <!-- TRIPS -->
   <section class="card" data-panel="trips" hidden>
     <h2>Your trips</h2>
@@ -266,7 +277,7 @@
 
   <footer class="muted">
     Live wait times from <a href="https://themeparks.wiki" target="_blank" rel="noopener">ThemeParks.wiki</a>.
-    Ride art is original. Not affiliated with any park operator. Times refresh every 5 minutes.
+    Built-in ride art is original. Not affiliated with any park operator. Times refresh every 5 minutes.
   </footer>
 <input type="file" id="photoInput" accept="image/*" hidden>
 </div>
@@ -640,12 +651,13 @@ async function loadPhotos(){
     const db = await idb();
     await new Promise(res => {
       const c = db.transaction("photos").objectStore("photos").openCursor();
-      c.onsuccess = () => { const cur = c.result; if (cur){ photos.set(cur.key, cur.value); cur.continue(); } else res(); };
+      c.onsuccess = () => { const cur = c.result; if (cur){ (String(cur.key).startsWith("pack:") ? packArt : photos).set(String(cur.key).replace(/^pack:/, ""), cur.value); cur.continue(); } else res(); };
       c.onerror = () => res();
     });
   } catch(e){}
 }
-function resizeImage(file){
+function resizeImage(file){ return resizeBlob(file); }
+function resizeBlob(file){
   return new Promise((res, rej) => {
     const url = URL.createObjectURL(file), img = new Image();
     img.onload = () => {
@@ -659,7 +671,95 @@ function resizeImage(file){
     img.src = url;
   });
 }
-function rideImg(id, name){ const p = photos.get(id); return p ? `<img src="${p}" alt="">` : rideArt(name); }
+function rideImg(id, name){
+  const p = photos.get(id) || packFor(name);
+  return p ? `<img src="${p}" alt="">` : rideArt(name);
+}
+
+/* ---------- picture packs: many pictures at once, matched by file name ---------- */
+const packArt = new Map();            // compact name -> data URL
+function compact(s){
+  return String(s).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/\.(jpe?g|png|webp|gif|heic|avif)$/, "").replace(/[^a-z0-9]/g, "");
+}
+function packFor(name){
+  if (!packArt.size) return null;
+  const k = compact(name);
+  if (packArt.has(k)) return packArt.get(k);
+  // closest partial match: longest pack name contained in the ride name (or the other way round)
+  let best = null, bestLen = 0;
+  for (const [key, val] of packArt){
+    if (key.length >= 6 && key.length > bestLen && (k.includes(key) || key.includes(k) && k.length >= 6)){ best = val; bestLen = key.length; }
+  }
+  return best;
+}
+// tiny .zip reader (stored or deflated entries) using the browser's built-in decompression
+async function readZip(file){
+  const buf = new Uint8Array(await file.arrayBuffer()), dv = new DataView(buf.buffer);
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 66000); i--) if (dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+  if (eocd < 0) throw new Error("That doesn't look like a .zip file");
+  const count = dv.getUint16(eocd + 10, true); let p = dv.getUint32(eocd + 16, true);
+  const out = [], dec = new TextDecoder();
+  for (let n = 0; n < count; n++){
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true);
+    const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
+    const local = dv.getUint32(p + 42, true), name = dec.decode(buf.subarray(p + 46, p + 46 + nlen));
+    p += 46 + nlen + xlen + clen;
+    const base = name.split("/").pop();
+    if (!base || name.includes("__MACOSX") || base.startsWith(".")) continue;
+    if (!/\.(jpe?g|png|webp|gif|avif)$/i.test(base) && base !== "manifest.json") continue;
+    const start = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
+    const raw = buf.subarray(start, start + csize);
+    let data;
+    if (method === 0) data = raw;
+    else if (method === 8 && typeof DecompressionStream !== "undefined")
+      data = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer());
+    else continue;
+    const ext = base.split(".").pop().toLowerCase();
+    out.push({ name: base, blob: new Blob([data], { type: ext === "json" ? "application/json" : "image/" + (ext === "jpg" ? "jpeg" : ext) }) });
+  }
+  return out;
+}
+async function addPack(files){
+  const status = $("#packStatus");
+  let entries = [];
+  for (const f of files){
+    if (/\.zip$/i.test(f.name) || f.type === "application/zip" || f.type === "application/x-zip-compressed"){
+      status.textContent = `Opening ${f.name}…`;
+      try { entries = entries.concat(await readZip(f)); } catch(e){ status.innerHTML = `<span class="err">${esc(e.message)}</span>`; return; }
+    } else entries.push({ name: f.name, blob: f });
+  }
+  // a manifest.json ([{ride_name, file}]) can name the ride for each picture
+  const names = {};
+  const man = entries.find(e => e.name === "manifest.json");
+  if (man){ try { (JSON.parse(await man.blob.text()) || []).forEach(m => { if (m.file && m.ride_name) names[m.file] = m.ride_name; }); } catch(e){} }
+  const imgs = entries.filter(e => e.name !== "manifest.json");
+  let done = 0, failed = 0;
+  for (const e of imgs){
+    status.textContent = `Adding pictures… ${done + failed + 1} of ${imgs.length}`;
+    try {
+      const data = await resizeBlob(e.blob), key = compact(names[e.name] || e.name);
+      packArt.set(key, data); idbWrite(st => st.put(data, "pack:" + key)).catch(() => {});
+      done++;
+    } catch(err){ failed++; }
+  }
+  renderPackStatus(`Added ${done} picture${done === 1 ? "" : "s"}${failed ? ` (${failed} couldn't be read)` : ""}.`);
+  if (!$('[data-panel="pick"]').hidden) renderPicker();
+  renderTicker();
+}
+function renderPackStatus(msg){
+  const btn = $("#packClear"); btn.hidden = !packArt.size;
+  $("#packStatus").innerHTML = (msg ? esc(msg) + " " : "") + (packArt.size ? `${packArt.size} pack picture${packArt.size === 1 ? "" : "s"} saved. Your own single-ride photos still win over pack pictures.` : "No pack pictures yet.");
+}
+$("#packBtn").onclick = () => $("#packInput").click();
+$("#packInput").onchange = e => { const fs = [...(e.target.files || [])]; e.target.value = ""; if (fs.length) addPack(fs); };
+$("#packClear").onclick = async () => {
+  const keys = [...packArt.keys()]; packArt.clear();
+  idbWrite(st => keys.forEach(k => st.delete("pack:" + k))).catch(() => {});
+  renderPackStatus("Pack pictures removed."); renderPicker(); renderTicker();
+};
 function thumbInner(id, name, editable){
   return rideImg(id, name) + (editable ? (photos.has(id) ? `<span class="x" data-rm title="Remove photo">✕</span>` : `<span class="cam">📷</span>`) : "");
 }
@@ -752,7 +852,7 @@ applyIcon();
 
 /* ---------- boot ---------- */
 renderHero(); renderTrips(); loadDestinations();
-loadPhotos().then(() => renderTicker());
+loadPhotos().then(() => { renderTicker(); renderPackStatus(); });
 </script>
 </body>
 </html>

@@ -161,6 +161,11 @@
   .cal-sum{margin-top:6px;font-size:.85rem}
   .legend{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center;font-size:.72rem;color:var(--mute)}
   .day-nav button{padding:8px 13px}
+
+  .cd-tag{font-size:.56rem;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);min-height:.9em;line-height:1}
+  .stepper button{width:40px;height:40px;padding:0;font-size:1.3rem;line-height:1;border-radius:50%}
+  /* home-screen app: solid strip behind the status bar so content doesn't run under the clock */
+  @media (display-mode: standalone){ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#0e1230;z-index:100} }
 </style>
 </head>
 <body>
@@ -1028,7 +1033,27 @@ function crowdLabel(n){ return n <= 3 ? ["Low","c-low"] : n <= 6 ? ["Moderate","
 /* ---------- trip calendar + day view ---------- */
 let homeDay = null;
 function parksForDest(destId){ return (destinations.find(d => d.id === destId) || {}).parks || []; }
-function parkName(t, id){ return (parksForDest(t.destId).find(p => p.id === id) || {}).name || state.parks[id]?.name || "Park"; }
+const EXTRAS = {
+  "e957da41-3552-4cf6-b636-5babc5cbc4e5": [{ id: "x-springs",  name: "Disney Springs",  abbr: "DS"  }],
+  "bfc89fd6-314d-44b4-b89e-df1a89cf991e": [{ id: "x-downtown", name: "Downtown Disney", abbr: "DTD" }],
+  "e8d0207f-da8a-4048-bec8-117aa946b2c2": [{ id: "x-village",  name: "Disney Village",  abbr: "DV"  }],
+  "faff60df-c766-4470-8adb-dee78e813f42": [{ id: "x-ikspiari", name: "Ikspiari",        abbr: "IKS" }],
+  "6e1464ca-1e9b-49c3-8937-c5c6f6675057": [{ id: "x-disneytown", name: "Disneytown",    abbr: "DT"  }],
+};
+function extrasFor(destId){ return EXTRAS[destId] || []; }
+function isExtra(id){ return String(id).startsWith("x-"); }
+function parkName(t, id){
+  const x = extrasFor(t.destId).find(e => e.id === id); if (x) return x.name;
+  return (parksForDest(t.destId).find(p => p.id === id) || {}).name || state.parks[id]?.name || "Park";
+}
+function placeAbbr(t, id){ const x = extrasFor(t.destId).find(e => e.id === id); return x ? x.abbr : parkAbbr(parkName(t, id)); }
+function setTripLength(t, n){
+  n = Math.max(1, Math.min(61, n));
+  t.endDate = addDays(t.date, n - 1);
+  t.days = Object.fromEntries(Object.entries(t.days || {}).filter(([d]) => d >= t.date && d <= t.endDate));
+  if (homeDay && homeDay > t.endDate) homeDay = t.endDate;
+  save(); renderTrips(); renderHome();
+}
 function parkAbbr(name){
   const n = name.toLowerCase();
   const map = [[/magic kingdom/,"MK"],[/epcot/,"EP"],[/hollywood studios/,"HS"],[/animal kingdom/,"AK"],[/typhoon/,"TL"],[/blizzard/,"BB"],
@@ -1068,9 +1093,10 @@ function renderCalendar(t){
     const num = +d.slice(8);
     if (!set.has(d)){ cells += `<div class="cal-day out"><span class="cd-num">${num}</span></div>`; continue; }
     const c = crowd(d, t.destId), [, cls] = crowdLabel(c), plan = dayPlan(t, d);
-    const abbr = plan.map(id => parkAbbr(parkName(t, id))).join(" · ");
+    const abbr = plan.map(id => placeAbbr(t, id)).join(" · ");
+    const tag = d === first && d === last ? "In/Out" : d === first ? "Arrive" : d === last ? "Depart" : "";
     cells += `<button class="cal-day${d === homeDay ? " sel" : ""}${d === today ? " today" : ""}" data-day="${d}" aria-label="${fmtDay(d,{weekday:"long",month:"long",day:"numeric"})}">
-      <span class="cd-num">${num}</span><span class="cd-parks${abbr ? "" : " none"}">${abbr || "Plan"}</span><span class="crowd ${cls}">${c}</span></button>`;
+      <span class="cd-num">${num}</span><span class="cd-tag">${tag}</span><span class="cd-parks${abbr ? "" : " none"}">${abbr || "Plan"}</span><span class="crowd ${cls}">${c}</span></button>`;
   }
   const planned = days.filter(d => dayPlan(t, d).length).length;
   const avg = Math.round(days.reduce((a, d) => a + crowd(d, t.destId), 0) / days.length);
@@ -1079,16 +1105,22 @@ function renderCalendar(t){
   $("#calCard").innerHTML = `
     <div class="row" style="justify-content:space-between"><h2 style="margin:0">${homeDay ? esc(t.name) : "Trip calendar"}</h2><span class="muted">${monthLabel}</span></div>
     ${upcomingTrips().length > 1 ? `<select id="homeTripSel" style="margin-top:10px">${upcomingTrips().map(x => `<option value="${x.id}" ${x.id === t.id ? "selected" : ""}>${esc(x.name)} · ${fmtDay(x.date,{month:"short",day:"numeric"})}${x.endDate && x.endDate !== x.date ? "–" + fmtDay(x.endDate,{month:"short",day:"numeric"}) : ""}</option>`).join("")}</select>` : ""}
-    <div class="muted cal-sum">${days.length} day${days.length === 1 ? "" : "s"} · ${range} · ${planned} of ${days.length} planned${parks.length ? ` · ${parks.map(id => parkAbbr(parkName(t, id))).join(", ")}` : ""} · avg crowd ${avg}/10</div>
+    <div class="muted cal-sum">${days.length} day${days.length === 1 ? "" : "s"} · ${range} · ${planned} of ${days.length} planned${parks.length ? ` · ${parks.map(id => placeAbbr(t, id)).join(", ")}` : ""} · avg crowd ${avg}/10</div>
+    <div class="row stepper" style="margin-top:12px;justify-content:space-between">
+      <span>Trip length</span>
+      <div class="row" style="gap:10px;flex-wrap:nowrap"><button id="lenMinus" ${days.length <= 1 ? "disabled" : ""} aria-label="One day shorter">−</button><b style="min-width:4.5em;text-align:center">${days.length} day${days.length === 1 ? "" : "s"}</b><button id="lenPlus" aria-label="One day longer">+</button></div>
+    </div>
     <div class="cal">${cells}</div>
     <div class="legend">Crowd estimate: <span class="crowd c-low">1–3 low</span><span class="crowd c-mid">4–6</span><span class="crowd c-high">7–8</span><span class="crowd c-max">9–10 very busy</span></div>
     ${homeDay ? "" : `
-      ${!t.endDate ? `<p class="err" style="margin:12px 0 0">This trip has no departure date yet, so it shows one day. <button onclick="showTab('trips');startEdit('${t.id}')">Add departure date</button></p>` : ""}
+      ${days.length === 1 ? `<p class="muted" style="margin:12px 0 0;font-size:.85rem">Staying longer? Tap <b>+</b> next to Trip length to add days.</p>` : ""}
       <div class="row" style="margin-top:12px"><button class="primary" id="planNext">${planned < days.length ? `Plan day ${days.findIndex(d => !dayPlan(t, d).length) + 1} →` : "Review day 1 →"}</button><span class="muted" style="font-size:.85rem">or tap any day to pick its parks</span></div>
       <p class="muted" style="font-size:.78rem;margin:10px 0 0">Crowd numbers are estimates from season, holidays and day of week, not official forecasts.</p>`}`;
   $("#calCard").querySelectorAll("[data-day]").forEach(b => b.onclick = () => b.dataset.day === homeDay ? closeDay() : openDay(b.dataset.day));
   const pn = $("#planNext"); if (pn) pn.onclick = () => openDay(days.find(d => !dayPlan(t, d).length) || days[0]);
   const ts = $("#homeTripSel"); if (ts) ts.onchange = () => showTripOnHome(ts.value);
+  $("#lenMinus").onclick = () => setTripLength(t, days.length - 1);
+  $("#lenPlus").onclick = () => setTripLength(t, days.length + 1);
 }
 async function renderDay(t, ds){
   const days = tripDays(t), i = days.indexOf(ds), c = crowd(ds, t.destId), [lab, cls] = crowdLabel(c);
@@ -1096,7 +1128,7 @@ async function renderDay(t, ds){
   let chips;
   if (!t.destId) chips = `<p class="muted">Pick a resort for this trip on the Trips tab to plan parks.</p>`;
   else if (!parks.length) chips = `<p class="muted">${destinations.length ? "No parks found for this resort." : "Loading parks…"}</p>`;
-  else chips = parks.map(p => `<label class="chip ${plan.includes(p.id) ? "on" : ""}"><input type="checkbox" data-dpark="${p.id}" ${plan.includes(p.id) ? "checked" : ""}> ${esc(p.name)}</label>`).join("");
+  else chips = parks.concat(extrasFor(t.destId)).map(p => `<label class="chip ${plan.includes(p.id) ? "on" : ""}"><input type="checkbox" data-dpark="${p.id}" ${plan.includes(p.id) ? "checked" : ""}> ${esc(p.name)}</label>`).join("");
   const card = $("#dayCard");
   card.innerHTML = `
     <div class="row day-nav" style="justify-content:space-between">
@@ -1105,6 +1137,7 @@ async function renderDay(t, ds){
     </div>
     <h2 style="margin:16px 0 2px;font-size:1.4rem">Day ${i + 1} of ${days.length}</h2>
     <div class="muted">${fmtDay(ds,{weekday:"long",month:"long",day:"numeric",year:"numeric"})}${isToday ? " · Today" : ""}</div>
+    ${i === 0 ? `<div class="crowd c-low" style="display:inline-block;margin-top:8px;font-size:.8rem;padding:4px 10px">✈︎ Arrival day · check-in ${tripFmt(t,{hour:"numeric",minute:"2-digit",timeZoneName:"short"})}</div> ` : ""}${i === days.length - 1 ? `<div class="crowd c-mid" style="display:inline-block;margin-top:8px;font-size:.8rem;padding:4px 10px">✈︎ Departure day</div>` : ""}
     <div class="crowd-banner ${cls}">Estimated crowds: <b>${c}/10 · ${lab}</b></div>
     <label style="margin-top:14px">Parks this day</label>
     <div>${chips}</div>
@@ -1115,14 +1148,20 @@ async function renderDay(t, ds){
   card.querySelectorAll("[data-dpark]").forEach(cb => cb.onchange = () => {
     t.days = t.days || {};
     const cur = new Set(dayPlan(t, ds)); cb.checked ? cur.add(cb.dataset.dpark) : cur.delete(cb.dataset.dpark);
-    t.days[ds] = { parks: parks.map(p => p.id).filter(id => cur.has(id)) };
+    t.days[ds] = { parks: parks.concat(extrasFor(t.destId)).map(p => p.id).filter(id => cur.has(id)) };
     save(); renderHome();
   });
   const box = $("#dayRides");
   if (!plan.length){ box.innerHTML = `<p class="muted">Pick a park above to see your rides for this day.</p>`; return; }
+  const extrasPlanned = plan.filter(isExtra), ridePlan = plan.filter(id => !isExtra(id));
+  if (!ridePlan.length){
+    box.innerHTML = extrasPlanned.map(id => `<h3 style="margin-top:14px">${esc(parkName(t, id))}</h3><p class="muted">Shopping, dining and entertainment. No queue times here.</p>`).join("");
+    return;
+  }
   box.innerHTML = (isToday ? "" : `<p class="muted" style="font-size:.8rem;margin:10px 0 0">Queue times below are live right now, not a forecast for this day.</p>`)
-    + plan.map(id => `<div class="park" data-dp="${id}"><h3 style="margin-top:14px">${esc(parkName(t, id))}</h3><p class="muted">Loading rides…</p></div>`).join("");
-  for (const id of plan){
+    + ridePlan.map(id => `<div class="park" data-dp="${id}"><h3 style="margin-top:14px">${esc(parkName(t, id))}</h3><p class="muted">Loading rides…</p></div>`).join("")
+    + extrasPlanned.map(id => `<h3 style="margin-top:14px">${esc(parkName(t, id))}</h3><p class="muted">Shopping, dining and entertainment. No queue times here.</p>`).join("");
+  for (const id of ridePlan){
     const el = box.querySelector(`[data-dp="${id}"]`), favs = new Set(state.favs[id] || []);
     const head = `<h3 style="margin-top:14px">${esc(parkName(t, id))}</h3>`;
     const starBtn = `<button data-starpark="${id}">${favs.size ? "Edit rides" : "Star rides"}</button>`;
@@ -1143,7 +1182,7 @@ async function renderDay(t, ds){
 }
 
 /* ---------- updates: never get stuck on an old saved copy ---------- */
-const BUILD = "202611232322";
+const BUILD = "202611232327";
 async function checkForUpdate(){
   try {
     const r = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });

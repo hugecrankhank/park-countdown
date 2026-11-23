@@ -13,3 +13,5 @@ Live wait times come from [ThemeParks.wiki](https://themeparks.wiki). Not affili
 ## Hosting
 
 It's a single `index.html`, so no build step is needed. Turn on GitHub Pages (Settings → Pages → deploy from `main`, root) or connect the repo to Cloudflare Pages.
+
+Live at https://hugecrankhank.github.io/park-countdown/

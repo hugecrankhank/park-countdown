@@ -180,13 +180,13 @@
   <!-- TRIPS -->
   <section class="card" data-panel="trips" hidden>
     <h2>Your trips</h2>
-    <p class="muted" style="margin-top:0">The countdown always shows the next upcoming trip.</p>
+    <p class="muted" style="margin-top:0">The countdown runs to your check-in time on arrival day, and always shows your next upcoming trip.</p>
     <form id="tripForm">
       <label>Trip name</label>
       <input id="tName" placeholder="Spring break at the World" required>
       <div class="grid2">
         <div><label>Arrival date</label><input id="tDate" type="date" required></div>
-        <div><label>Park opening / arrival time</label><input id="tTime" type="time" value="09:00"></div>
+        <div><label>Check-in time</label><input id="tTime" type="time" value="15:00" required></div>
       </div>
       <div class="row" style="margin-top:12px"><button class="primary" type="submit">Add trip</button></div>
     </form>
@@ -240,9 +240,10 @@ function renderHero(){
     return;
   }
   let ms = tripTime(t) - Date.now();
-  const when = new Date(tripTime(t)).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric",year:"numeric"});
+  const when = "Arriving " + new Date(tripTime(t)).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric",year:"numeric"})
+    + " · Check-in " + new Date(tripTime(t)).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
   if (ms <= 0){
-    el.innerHTML = `<div class="trip">${esc(t.name)}</div><p style="font-size:1.4rem;margin:14px 0 4px">It's park day! 🎉</p><p class="muted">${when}</p>`;
+    el.innerHTML = `<div class="trip">${esc(t.name)}</div><p style="font-size:1.4rem;margin:14px 0 4px">Check-in time! 🎉</p><p class="muted">${when}</p>`;
     return;
   }
   const d = Math.floor(ms/864e5); ms -= d*864e5;
@@ -260,7 +261,7 @@ setInterval(renderHero, 1000);
 $("#tripForm").onsubmit = e => {
   e.preventDefault();
   state.trips.push({ id: crypto.randomUUID?.() || String(Date.now()), name: $("#tName").value.trim(), date: $("#tDate").value, time: $("#tTime").value });
-  save(); e.target.reset(); $("#tTime").value = "09:00"; renderTrips(); renderHero();
+  save(); e.target.reset(); $("#tTime").value = "15:00"; renderTrips(); renderHero();
 };
 function renderTrips(){
   const list = [...state.trips].sort((a,b) => tripTime(a)-tripTime(b));

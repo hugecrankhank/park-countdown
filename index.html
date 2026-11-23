@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Park Day Countdown</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e1230; --bg2:#1a1f4a; --card:#ffffff10; --line:#ffffff1f;
+    --ink:#f4f1ea; --mute:#b8b6d0; --gold:#f2c46d; --mint:#6fe0b4; --amber:#f5a352; --rose:#ff7b8a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);
+    background:radial-gradient(1200px 600px at 50% -200px,#3a2f7a 0%,transparent 70%),linear-gradient(180deg,var(--bg),var(--bg2));
+    min-height:100vh}
+  .wrap{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+  h1,h2{font-family:Fraunces,serif;margin:0}
+  h2{font-size:1.15rem;margin-bottom:10px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:16px;backdrop-filter:blur(6px)}
+  .muted{color:var(--mute);font-size:.88rem}
+  button,.btn{font:inherit;cursor:pointer;border:1px solid var(--line);background:#ffffff14;color:var(--ink);
+    padding:8px 14px;border-radius:999px}
+  button.primary{background:var(--gold);color:#1b1640;border-color:var(--gold);font-weight:600}
+  button:disabled{opacity:.5;cursor:default}
+  input,select{font:inherit;color:var(--ink);background:#00000033;border:1px solid var(--line);border-radius:10px;padding:9px 10px;width:100%}
+  label{display:block;font-size:.8rem;color:var(--mute);margin:10px 0 4px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media (max-width:520px){.grid2{grid-template-columns:1fr}}
+
+  /* countdown */
+  .hero{text-align:center;padding:26px 18px}
+  .hero .trip{font-family:Fraunces,serif;font-size:1.5rem}
+  .clock{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0 6px}
+  .unit{background:#00000030;border:1px solid var(--line);border-radius:14px;padding:12px 4px}
+  .unit b{display:block;font-family:Fraunces,serif;font-size:clamp(1.8rem,8vw,3rem);color:var(--gold);font-variant-numeric:tabular-nums}
+  .unit span{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+  .stars{position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.6;
+    background-image:radial-gradient(1px 1px at 20% 30%,#fff,transparent),radial-gradient(1px 1px at 70% 20%,#fff,transparent),
+    radial-gradient(1.5px 1.5px at 40% 70%,#fff,transparent),radial-gradient(1px 1px at 85% 60%,#fff,transparent),
+    radial-gradient(1px 1px at 10% 85%,#fff,transparent),radial-gradient(1.5px 1.5px at 55% 45%,#fff,transparent)}
+
+  /* tabs */
+  .tabs{display:flex;gap:6px;margin-top:18px;overflow-x:auto}
+  .tabs button{white-space:nowrap}
+  .tabs button.on{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}
+
+  /* waits */
+  .park{margin-top:14px}
+  .park h3{font-family:Fraunces,serif;font-size:1.05rem;margin:0 0 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .ride{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+  .ride .name{flex:1;min-width:0}
+  .ride .name small{display:block;color:var(--mute);font-size:.75rem}
+  .wait{min-width:64px;text-align:center;border-radius:12px;padding:6px 8px;font-weight:600;font-variant-numeric:tabular-nums}
+  .w-low{background:#6fe0b422;color:var(--mint)} .w-mid{background:#f5a35222;color:var(--amber)}
+  .w-high{background:#ff7b8a22;color:var(--rose)} .w-na{background:#ffffff10;color:var(--mute);font-weight:500;font-size:.8rem}
+  .star{background:none;border:none;font-size:1.3rem;padding:4px;color:#ffffff40}
+  .star.on{color:var(--gold)}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);margin:4px 4px 0 0;font-size:.9rem;cursor:pointer;user-select:none}
+  .chip input{width:auto;margin:0}
+  .chip.on{background:#f2c46d22;border-color:var(--gold)}
+  .search{margin:8px 0}
+  .trip-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line);gap:8px}
+  .err{color:var(--rose);font-size:.9rem}
+  footer{margin-top:24px;text-align:center}
+  a{color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="stars"></div>
+<div class="wrap">
+  <h1 style="font-size:1.1rem;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">Park Day Countdown</h1>
+
+  <section class="card hero" id="hero"></section>
+
+  <div class="tabs" role="tablist">
+    <button data-tab="waits" class="on">Wait times</button>
+    <button data-tab="pick">Parks &amp; rides</button>
+    <button data-tab="trips">Trips</button>
+  </div>
+
+  <!-- WAIT TIMES -->
+  <section class="card" data-panel="waits">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">Your favorites</h2>
+      <div class="row">
+        <span class="muted" id="updated"></span>
+        <button id="refresh">Refresh</button>
+      </div>
+    </div>
+    <div id="waits"></div>
+  </section>
+
+  <!-- PICKER -->
+  <section class="card" data-panel="pick" hidden>
+    <h2>Pick your parks</h2>
+    <p class="muted" style="margin-top:0">Choose parks, then tap ☆ next to the rides you want on your wait-times list.</p>
+    <label>Resort</label>
+    <select id="destSel"><option>Loading resorts…</option></select>
+    <div id="parkChips" style="margin-top:8px"></div>
+    <div id="pickerList"></div>
+  </section>
+
+  <!-- TRIPS -->
+  <section class="card" data-panel="trips" hidden>
+    <h2>Your trips</h2>
+    <p class="muted" style="margin-top:0">The countdown always shows the next upcoming trip.</p>
+    <form id="tripForm">
+      <label>Trip name</label>
+      <input id="tName" placeholder="Spring break at the World" required>
+      <div class="grid2">
+        <div><label>Arrival date</label><input id="tDate" type="date" required></div>
+        <div><label>Park opening / arrival time</label><input id="tTime" type="time" value="09:00"></div>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="primary" type="submit">Add trip</button></div>
+    </form>
+    <div id="tripList" style="margin-top:14px"></div>
+  </section>
+
+  <footer class="muted">
+    Live wait times from <a href="https://themeparks.wiki" target="_blank" rel="noopener">ThemeParks.wiki</a>.
+    Not affiliated with any park operator. Times refresh every 5 minutes.
+  </footer>
+</div>
+
+<script>
+const API = "https://api.themeparks.wiki/v1";
+const KEY = "parkCountdown.v1";
+
+/* ---------- state ---------- */
+let state = { trips: [], destId: null, parks: {}, favs: {} };
+// parks: { parkId: {name, destName} }   favs: { parkId: [attractionId,...] }
+try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) state = Object.assign(state, s); } catch(e){}
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+
+const liveCache = {};          // parkId -> {at, data: [liveEntries]}
+let destinations = [];
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- tabs ---------- */
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+function showTab(t){
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  document.querySelectorAll("[data-panel]").forEach(p => p.hidden = p.dataset.panel !== t);
+  if (t === "pick") renderPicker();
+  if (t === "waits") renderWaits();
+}
+
+/* ---------- countdown ---------- */
+function tripTime(t){ return new Date(`${t.date}T${t.time || "00:00"}`).getTime(); }
+function nextTrip(){
+  const now = Date.now();
+  return state.trips.filter(t => tripTime(t) > now - 864e5*7) // keep showing for a week after arrival
+    .sort((a,b) => tripTime(a) - tripTime(b))[0];
+}
+function renderHero(){
+  const t = nextTrip(), el = $("#hero");
+  if (!t){
+    el.innerHTML = `<div class="trip">No trip on the calendar yet</div>
+      <p class="muted">Add your next trip to start the countdown.</p>
+      <button class="primary" onclick="showTab('trips')">Add a trip</button>`;
+    return;
+  }
+  let ms = tripTime(t) - Date.now();
+  const when = new Date(tripTime(t)).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric",year:"numeric"});
+  if (ms <= 0){
+    el.innerHTML = `<div class="trip">${esc(t.name)}</div><p style="font-size:1.4rem;margin:14px 0 4px">It's park day! 🎉</p><p class="muted">${when}</p>`;
+    return;
+  }
+  const d = Math.floor(ms/864e5); ms -= d*864e5;
+  const h = Math.floor(ms/36e5);  ms -= h*36e5;
+  const m = Math.floor(ms/6e4);   ms -= m*6e4;
+  const s = Math.floor(ms/1e3);
+  const u = (n,l) => `<div class="unit"><b>${String(n).padStart(2,"0")}</b><span>${l}</span></div>`;
+  el.innerHTML = `<div class="trip">${esc(t.name)}</div>
+    <div class="clock">${u(d,"days")}${u(h,"hours")}${u(m,"min")}${u(s,"sec")}</div>
+    <div class="muted">${when}</div>`;
+}
+setInterval(renderHero, 1000);
+
+/* ---------- trips ---------- */
+$("#tripForm").onsubmit = e => {
+  e.preventDefault();
+  state.trips.push({ id: crypto.randomUUID?.() || String(Date.now()), name: $("#tName").value.trim(), date: $("#tDate").value, time: $("#tTime").value });
+  save(); e.target.reset(); $("#tTime").value = "09:00"; renderTrips(); renderHero();
+};
+function renderTrips(){
+  const list = [...state.trips].sort((a,b) => tripTime(a)-tripTime(b));
+  $("#tripList").innerHTML = list.length ? list.map(t => `
+    <div class="trip-item"><div><b>${esc(t.name)}</b><br><span class="muted">${new Date(tripTime(t)).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})}</span></div>
+    <button data-del="${t.id}">Remove</button></div>`).join("") : `<p class="muted">No trips yet.</p>`;
+  $("#tripList").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    state.trips = state.trips.filter(t => t.id !== b.dataset.del); save(); renderTrips(); renderHero();
+  });
+}
+
+/* ---------- API ---------- */
+async function getJSON(path){
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+async function loadDestinations(){
+  try {
+    const j = await getJSON("/destinations");
+    destinations = (j.destinations || []).sort((a,b) => {
+      const da = /disney/i.test(a.name), db = /disney/i.test(b.name);
+      return da === db ? a.name.localeCompare(b.name) : (da ? -1 : 1);
+    });
+    const sel = $("#destSel");
+    sel.innerHTML = destinations.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
+    if (!state.destId){
+      const wdw = destinations.find(d => /walt disney world/i.test(d.name)) || destinations[0];
+      state.destId = wdw?.id;
+    }
+    sel.value = state.destId;
+    sel.onchange = () => { state.destId = sel.value; save(); renderPicker(); };
+    renderPicker();
+  } catch(e){
+    $("#destSel").innerHTML = `<option>Couldn't load resorts</option>`;
+    $("#parkChips").innerHTML = `<p class="err">Couldn't reach the wait-time service (${esc(e.message)}).</p>`;
+  }
+}
+async function getLive(parkId, force){
+  const c = liveCache[parkId];
+  if (c && !force && Date.now() - c.at < 4.5*60e3) return c.data;
+  const j = await getJSON(`/entity/${parkId}/live`);
+  const data = (j.liveData || []).filter(x => x.entityType === "ATTRACTION");
+  liveCache[parkId] = { at: Date.now(), data };
+  return data;
+}
+
+/* ---------- picker ---------- */
+let pickerQuery = "";
+async function renderPicker(){
+  const dest = destinations.find(d => d.id === state.destId);
+  if (!dest) return;
+  const parks = dest.parks || [];
+  $("#parkChips").innerHTML = parks.map(p => `
+    <label class="chip ${state.parks[p.id] ? "on" : ""}">
+      <input type="checkbox" data-park="${p.id}" ${state.parks[p.id] ? "checked" : ""}> ${esc(p.name)}
+    </label>`).join("");
+  $("#parkChips").querySelectorAll("[data-park]").forEach(cb => cb.onchange = () => {
+    const p = parks.find(x => x.id === cb.dataset.park);
+    if (cb.checked) state.parks[p.id] = { name: p.name, destName: dest.name };
+    else { delete state.parks[p.id]; }
+    save(); renderPicker();
+  });
+
+  const chosen = parks.filter(p => state.parks[p.id]);
+  const box = $("#pickerList");
+  if (!chosen.length){ box.innerHTML = `<p class="muted" style="margin-top:14px">Select at least one park above.</p>`; return; }
+  box.innerHTML = `<input class="search" id="pq" placeholder="Search rides…" value="${esc(pickerQuery)}">` +
+    chosen.map(p => `<div class="park" data-pp="${p.id}"><h3>${esc(p.name)}</h3><p class="muted">Loading rides…</p></div>`).join("");
+  $("#pq").oninput = e => { pickerQuery = e.target.value; filterPicker(); };
+
+  for (const p of chosen){
+    const el = box.querySelector(`[data-pp="${p.id}"]`);
+    try {
+      const rides = (await getLive(p.id)).slice().sort((a,b) => a.name.localeCompare(b.name));
+      const favs = new Set(state.favs[p.id] || []);
+      el.innerHTML = `<h3>${esc(p.name)} <span class="muted">${favs.size} picked</span></h3>` + rides.map(r => `
+        <div class="ride" data-name="${esc(r.name.toLowerCase())}">
+          <button class="star ${favs.has(r.id) ? "on" : ""}" data-fav="${r.id}" data-fp="${p.id}" aria-label="Favorite">${favs.has(r.id) ? "★" : "☆"}</button>
+          <div class="name">${esc(r.name)}</div>
+          ${waitBadge(r)}
+        </div>`).join("");
+      el.querySelectorAll("[data-fav]").forEach(b => b.onclick = () => toggleFav(b.dataset.fp, b.dataset.fav, b));
+    } catch(e){
+      el.innerHTML = `<h3>${esc(p.name)}</h3><p class="err">Couldn't load rides (${esc(e.message)}).</p>`;
+    }
+  }
+  filterPicker();
+}
+function filterPicker(){
+  const q = pickerQuery.trim().toLowerCase();
+  document.querySelectorAll("#pickerList .ride").forEach(r => r.hidden = q && !r.dataset.name.includes(q));
+}
+function toggleFav(parkId, id, btn){
+  const s = new Set(state.favs[parkId] || []);
+  s.has(id) ? s.delete(id) : s.add(id);
+  state.favs[parkId] = [...s]; save();
+  btn.classList.toggle("on", s.has(id)); btn.textContent = s.has(id) ? "★" : "☆";
+  const h = btn.closest(".park").querySelector("h3 .muted"); if (h) h.textContent = `${s.size} picked`;
+}
+
+/* ---------- waits ---------- */
+function standby(r){ return r.queue?.STANDBY?.waitTime; }
+function waitBadge(r){
+  if (r.status && r.status !== "OPERATING"){
+    const label = {DOWN:"Down",CLOSED:"Closed",REFURBISHMENT:"Refurb"}[r.status] || r.status;
+    return `<div class="wait w-na">${label}</div>`;
+  }
+  const w = standby(r);
+  if (w == null) return `<div class="wait w-na">No wait</div>`;
+  const cls = w <= 20 ? "w-low" : w <= 50 ? "w-mid" : "w-high";
+  return `<div class="wait ${cls}">${w}<small style="font-weight:400"> min</small></div>`;
+}
+async function renderWaits(force){
+  const box = $("#waits");
+  const parkIds = Object.keys(state.parks).filter(id => (state.favs[id] || []).length);
+  if (!parkIds.length){
+    box.innerHTML = `<p class="muted">No favorite rides yet. <button onclick="showTab('pick')">Pick parks &amp; rides</button></p>`;
+    $("#updated").textContent = ""; return;
+  }
+  box.innerHTML = parkIds.map(id => `<div class="park" data-wp="${id}"><h3>${esc(state.parks[id].name)}</h3><p class="muted">Loading…</p></div>`).join("");
+  for (const id of parkIds){
+    const el = box.querySelector(`[data-wp="${id}"]`);
+    try {
+      const live = await getLive(id, force);
+      const favs = new Set(state.favs[id]);
+      const rides = live.filter(r => favs.has(r.id)).sort((a,b) => {
+        const oa = a.status === "OPERATING" ? 0 : 1, ob = b.status === "OPERATING" ? 0 : 1;
+        return oa - ob || (standby(a) ?? 999) - (standby(b) ?? 999);
+      });
+      el.innerHTML = `<h3>${esc(state.parks[id].name)}</h3>` + (rides.length ? rides.map(r => `
+        <div class="ride"><div class="name">${esc(r.name)}${r.lastUpdated ? `<small>Updated ${new Date(r.lastUpdated).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})}</small>` : ""}</div>${waitBadge(r)}</div>`).join("")
+        : `<p class="muted">None of your picks are reporting right now.</p>`);
+    } catch(e){
+      el.innerHTML = `<h3>${esc(state.parks[id].name)}</h3><p class="err">Couldn't load wait times (${esc(e.message)}).</p>`;
+    }
+  }
+  $("#updated").textContent = new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
+}
+$("#refresh").onclick = () => renderWaits(true);
+setInterval(() => { if (!$('[data-panel="waits"]').hidden) renderWaits(true); }, 5*60e3);
+
+/* ---------- boot ---------- */
+renderHero(); renderTrips(); loadDestinations(); renderWaits();
+if (!state.trips.length) showTab("trips");
+</script>
+</body>
+</html>

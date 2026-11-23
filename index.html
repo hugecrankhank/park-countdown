@@ -231,9 +231,11 @@
     <form id="tripForm">
       <label>Trip name</label>
       <input id="tName" placeholder="Spring break at the World" required>
+      <label>Resort</label>
+      <select id="tDest"></select>
       <div class="grid2">
         <div><label>Arrival date</label><input id="tDate" type="date" required></div>
-        <div><label>Check-in time</label><input id="tTime" type="time" value="15:00" required></div>
+        <div><label>Check-in time <span id="tzHint"></span></label><input id="tTime" type="time" value="15:00" required></div>
       </div>
       <div class="row" style="margin-top:12px"><button class="primary" type="submit">Add trip</button></div>
     </form>
@@ -274,7 +276,42 @@ function showTab(t){
 }
 
 /* ---------- countdown ---------- */
-function tripTime(t){ return new Date(`${t.date}T${t.time || "00:00"}`).getTime(); }
+const RESORTS = [
+  { id:"e957da41-3552-4cf6-b636-5babc5cbc4e5", name:"Walt Disney World (Florida)",    tz:"America/New_York" },
+  { id:"bfc89fd6-314d-44b4-b89e-df1a89cf991e", name:"Disneyland Resort (California)", tz:"America/Los_Angeles" },
+  { id:"e8d0207f-da8a-4048-bec8-117aa946b2c2", name:"Disneyland Paris",               tz:"Europe/Paris" },
+  { id:"faff60df-c766-4470-8adb-dee78e813f42", name:"Tokyo Disney Resort",            tz:"Asia/Tokyo" },
+  { id:"6e1464ca-1e9b-49c3-8937-c5c6f6675057", name:"Shanghai Disney Resort",         tz:"Asia/Shanghai" },
+  { id:"abcfffe7-01f2-4f92-ae61-5093346f5a68", name:"Hong Kong Disneyland",           tz:"Asia/Hong_Kong" },
+];
+const MY_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e){ return ""; } })();
+// ms offset of a time zone from UTC at a given instant
+function tzOffset(ts, tz){
+  const p = {};
+  new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    .formatToParts(new Date(ts)).forEach(x => p[x.type] = x.value);
+  return Date.UTC(+p.year, p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - Math.floor(ts / 1000) * 1000;
+}
+// wall-clock date+time in a given zone -> instant
+function zonedTime(date, time, tz){
+  const [y, mo, d] = date.split("-").map(Number), [hh, mm] = (time || "00:00").split(":").map(Number);
+  const guess = Date.UTC(y, mo - 1, d, hh, mm);
+  let ts = guess - tzOffset(guess, tz);
+  ts = guess - tzOffset(ts, tz);           // settle across daylight-saving changes
+  return ts;
+}
+function tripTime(t){
+  if (t.tz){ try { return zonedTime(t.date, t.time, t.tz); } catch(e){} }
+  return new Date(`${t.date}T${t.time || "00:00"}`).getTime();
+}
+let GENERIC_TZ = true;
+try { new Intl.DateTimeFormat("en-US",{timeZoneName:"shortGeneric"}); } catch(e){ GENERIC_TZ = false; }
+function tripFmt(t, opts){
+  const o = Object.assign({}, opts); if (t.tz) o.timeZone = t.tz;
+  if (o.timeZoneName && GENERIC_TZ) o.timeZoneName = "shortGeneric";
+  try { return new Date(tripTime(t)).toLocaleString(undefined, o); } catch(e){ delete o.timeZone; return new Date(tripTime(t)).toLocaleString(undefined, o); }
+}
+function differentZone(t){ return t.tz && MY_TZ && tzOffset(tripTime(t), t.tz) !== tzOffset(tripTime(t), MY_TZ); }
 function nextTrip(){
   const now = Date.now();
   return state.trips.filter(t => tripTime(t) > now - 864e5*7) // keep showing for a week after arrival
@@ -289,8 +326,10 @@ function renderHero(){
     return;
   }
   let ms = tripTime(t) - Date.now();
-  const when = "Arriving " + new Date(tripTime(t)).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric",year:"numeric"})
-    + " · Check-in " + new Date(tripTime(t)).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
+  const when = (t.destName ? `<div style="color:var(--ink);margin-bottom:2px">${esc(t.destName)}</div>` : "")
+    + "Arriving " + tripFmt(t, {weekday:"long",month:"long",day:"numeric",year:"numeric"})
+    + " · Check-in " + tripFmt(t, {hour:"numeric",minute:"2-digit",timeZoneName:"short"})
+    + (differentZone(t) ? `<div style="font-size:.8rem;margin-top:4px">That's ${new Date(tripTime(t)).toLocaleString(undefined,{weekday:"short",hour:"numeric",minute:"2-digit"})} your time</div>` : "");
   if (ms <= 0){
     el.innerHTML = `<div class="trip">${esc(t.name)}</div><p style="font-size:1.4rem;margin:14px 0 4px">Check-in time! 🎉</p><p class="muted">${when}</p>`;
     return;
@@ -309,13 +348,32 @@ setInterval(renderHero, 1000);
 /* ---------- trips ---------- */
 $("#tripForm").onsubmit = e => {
   e.preventDefault();
-  state.trips.push({ id: crypto.randomUUID?.() || String(Date.now()), name: $("#tName").value.trim(), date: $("#tDate").value, time: $("#tTime").value });
-  save(); e.target.reset(); $("#tTime").value = "15:00"; renderTrips(); renderHero();
+  const r = RESORTS.find(x => x.id === $("#tDest").value);
+  state.trips.push({ id: crypto.randomUUID?.() || String(Date.now()), name: $("#tName").value.trim(), date: $("#tDate").value, time: $("#tTime").value,
+    destId: r?.id || null, destName: r?.name || "", tz: r?.tz || null });
+  // first trip to a resort: point Parks & Rides at it too
+  if (r && !Object.keys(state.parks).length){ state.destId = r.id; if ($("#destSel").querySelector(`option[value="${r.id}"]`)) $("#destSel").value = r.id; }
+  const keep = $("#tDest").value;
+  save(); e.target.reset(); $("#tTime").value = "15:00"; $("#tDest").value = keep; tzHint(); renderTrips(); renderHero();
 };
+function tzHint(){
+  const r = RESORTS.find(x => x.id === $("#tDest").value), el = $("#tzHint");
+  if (!el) return;
+  if (!r){ el.textContent = "(your time)"; return; }
+  let abbr = "";
+  try { abbr = new Intl.DateTimeFormat("en-US",{timeZone:r.tz,timeZoneName: GENERIC_TZ ? "shortGeneric" : "short"}).formatToParts(new Date()).find(p => p.type === "timeZoneName").value; } catch(e){}
+  el.textContent = `(${abbr || r.tz} — park local time)`;
+}
+(function setupTripDest(){
+  const sel = $("#tDest");
+  sel.innerHTML = RESORTS.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join("") + `<option value="">Somewhere else (my time zone)</option>`;
+  sel.value = (RESORTS.find(r => r.id === state.destId) || RESORTS[0]).id;
+  sel.onchange = tzHint; tzHint();
+})();
 function renderTrips(){
   const list = [...state.trips].sort((a,b) => tripTime(a)-tripTime(b));
   $("#tripList").innerHTML = list.length ? list.map(t => `
-    <div class="trip-item"><div><b>${esc(t.name)}</b><br><span class="muted">${new Date(tripTime(t)).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})}</span></div>
+    <div class="trip-item"><div><b>${esc(t.name)}</b><br><span class="muted">${t.destName ? esc(t.destName) + "<br>" : ""}${tripFmt(t,{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",timeZoneName:"short"})}</span></div>
     <button data-del="${t.id}">Remove</button></div>`).join("") : `<p class="muted">No trips yet.</p>`;
   $("#tripList").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
     state.trips = state.trips.filter(t => t.id !== b.dataset.del); save(); renderTrips(); renderHero();
@@ -331,12 +389,15 @@ async function getJSON(path){
 async function loadDestinations(){
   try {
     const j = await getJSON("/destinations");
-    destinations = (j.destinations || []).sort((a,b) => {
-      const da = /disney/i.test(a.name), db = /disney/i.test(b.name);
-      return da === db ? a.name.localeCompare(b.name) : (da ? -1 : 1);
-    });
+    destinations = j.destinations || [];
+    const order = RESORTS.map(r => r.id);
+    const disney = order.map(id => destinations.find(d => d.id === id)).filter(Boolean)
+      .concat(destinations.filter(d => !order.includes(d.id) && /disney/i.test(d.name)));
+    const other = destinations.filter(d => !disney.includes(d)).sort((a,b) => a.name.localeCompare(b.name));
+    const label = d => (RESORTS.find(r => r.id === d.id)?.name) || d.name;
     const sel = $("#destSel");
-    sel.innerHTML = destinations.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
+    sel.innerHTML = `<optgroup label="Disney resorts">${disney.map(d => `<option value="${d.id}">${esc(label(d))}</option>`).join("")}</optgroup>`
+      + (other.length ? `<optgroup label="Other parks">${other.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join("")}</optgroup>` : "");
     if (!state.destId){
       const wdw = destinations.find(d => /walt disney world/i.test(d.name)) || destinations[0];
       state.destId = wdw?.id;

@@ -291,6 +291,7 @@
       </div>
       <label>Check-in time <span id="tzHint"></span></label><input id="tTime" type="time" value="15:00" required>
       <p class="err" id="tripErr" style="margin:8px 0 0"></p>
+      <div id="tripSaved" class="muted" style="margin-top:8px"></div>
       <div class="row" style="margin-top:12px"><button class="primary" type="submit" id="tripSubmit">Add trip</button><button type="button" id="tripCancel" hidden>Cancel</button></div>
     </form>
     <div id="tripList" style="margin-top:14px"></div>
@@ -380,10 +381,12 @@ function tripEnd(t){
   if (t.tz){ try { return zonedTime(end, "23:59", t.tz); } catch(e){} }
   return new Date(`${end}T23:59`).getTime();
 }
+function upcomingTrips(){ const now = Date.now(); return state.trips.filter(t => tripEnd(t) > now).sort((a,b) => tripTime(a) - tripTime(b)); }
 function nextTrip(){
-  const now = Date.now();
-  return state.trips.filter(t => tripEnd(t) > now).sort((a,b) => tripTime(a) - tripTime(b))[0];
+  const up = upcomingTrips();
+  return up.find(t => t.id === state.homeTripId) || up[0];
 }
+function showTripOnHome(id){ state.homeTripId = id; homeDay = null; save(); renderTrips(); renderHero(); renderHome(); }
 /* ---------- plain-date helpers (YYYY-MM-DD, no time zone surprises) ---------- */
 function addDays(ds, n){ const d = new Date(ds + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 function dowOf(ds){ return new Date(ds + "T00:00:00Z").getUTCDay(); }
@@ -448,17 +451,24 @@ $("#tripForm").onsubmit = e => {
   const fields = { name: $("#tName").value.trim(), date, endDate: end, time: $("#tTime").value,
     destId: r?.id || null, destName: r?.name || "", tz: r?.tz || null };
   const t = editingId && state.trips.find(x => x.id === editingId);
+  let savedId;
   if (t){
+    savedId = t.id;
     const resortChanged = t.destId !== fields.destId;
     Object.assign(t, fields);
     // keep day plans that still fall inside the trip (and still match the resort)
     t.days = resortChanged ? {} : Object.fromEntries(Object.entries(t.days || {}).filter(([d]) => d >= date && d <= end));
   } else {
-    state.trips.push(Object.assign({ id: crypto.randomUUID?.() || String(Date.now()), days: {} }, fields));
+    savedId = crypto.randomUUID?.() || String(Date.now());
+    state.trips.push(Object.assign({ id: savedId, days: {} }, fields));
     // first trip to a resort: point Parks & Rides at it too
     if (r && !Object.keys(state.parks).length){ state.destId = r.id; if ($("#destSel").querySelector(`option[value="${r.id}"]`)) $("#destSel").value = r.id; }
   }
+  state.homeTripId = savedId; homeDay = null;
+  const wasEdit = !!t;
   save(); resetTripForm(); renderTrips(); renderHero(); renderHome();
+  const n = tripDays(state.trips.find(x => x.id === savedId)).length;
+  $("#tripSaved").innerHTML = `${wasEdit ? "Saved" : "Added"} · ${n} day${n === 1 ? "" : "s"}. <button class="primary" onclick="showTab('home')">Plan your days on Home →</button>`;
 };
 function resetTripForm(){
   const keep = $("#tDest").value;
@@ -473,7 +483,7 @@ function startEdit(id){
   editingId = id;
   $("#tName").value = t.name; $("#tDest").value = t.destId || ""; $("#tDate").value = t.date;
   $("#tEnd").value = t.endDate || t.date; $("#tEnd").min = t.date; $("#tTime").value = t.time || "15:00";
-  $("#tripSubmit").textContent = "Save changes"; $("#tripCancel").hidden = false; $("#tripErr").textContent = "";
+  $("#tripSubmit").textContent = "Save changes"; $("#tripCancel").hidden = false; $("#tripErr").textContent = ""; $("#tripSaved").textContent = "";
   tzHint(); $("#tripForm").scrollIntoView({ block: "start", behavior: "smooth" }); $("#tName").focus({ preventScroll: true });
 }
 function tzHint(){
@@ -491,16 +501,19 @@ function tzHint(){
   sel.onchange = tzHint; tzHint();
 })();
 function renderTrips(){
-  const list = [...state.trips].sort((a,b) => tripTime(a)-tripTime(b));
+  const list = [...state.trips].sort((a,b) => tripTime(a)-tripTime(b)), home = nextTrip();
   $("#tripList").innerHTML = list.length ? list.map(t => {
     const n = tripDays(t).length;
     const range = t.endDate && t.endDate !== t.date
       ? `${fmtDay(t.date,{month:"short",day:"numeric"})} – ${fmtDay(t.endDate,{month:"short",day:"numeric",year:"numeric"})}`
       : fmtDay(t.date,{month:"short",day:"numeric",year:"numeric"});
-    return `<div class="trip-item"><div><b>${esc(t.name)}</b><br><span class="muted">${t.destName ? esc(t.destName) + "<br>" : ""}${range} · ${n} day${n === 1 ? "" : "s"}<br>Check-in ${tripFmt(t,{hour:"numeric",minute:"2-digit",timeZoneName:"short"})}</span></div>
-    <div class="row" style="flex-wrap:nowrap"><button data-edit="${t.id}">Edit</button><button data-del="${t.id}">Remove</button></div></div>`;
+    const onHome = home && home.id === t.id, upcoming = tripEnd(t) > Date.now();
+    return `<div class="trip-item" style="flex-direction:column;align-items:stretch"><div><b>${esc(t.name)}</b>${onHome ? ` <span class="crowd c-low" style="margin-left:4px">On Home</span>` : ""}<br><span class="muted">${t.destName ? esc(t.destName) + "<br>" : ""}${range} · ${n} day${n === 1 ? "" : "s"}<br>Check-in ${tripFmt(t,{hour:"numeric",minute:"2-digit",timeZoneName:"short"})}</span>
+      ${!t.endDate ? `<div class="err" style="font-size:.85rem;margin-top:4px">No departure date yet. Tap Edit to add one.</div>` : ""}</div>
+    <div class="row" style="margin-top:8px">${onHome ? `<button class="primary" onclick="showTab('home')">Plan days</button>` : upcoming ? `<button data-home="${t.id}">Show on Home</button>` : ""}<button data-edit="${t.id}">Edit</button><button data-del="${t.id}">Remove</button></div></div>`;
   }).join("") : `<p class="muted">No trips yet.</p>`;
   $("#tripList").querySelectorAll("[data-edit]").forEach(b => b.onclick = () => startEdit(b.dataset.edit));
+  $("#tripList").querySelectorAll("[data-home]").forEach(b => b.onclick = () => showTripOnHome(b.dataset.home));
   $("#tripList").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
     if (editingId === b.dataset.del) resetTripForm();
     state.trips = state.trips.filter(t => t.id !== b.dataset.del); save(); renderTrips(); renderHero(); renderHome();
@@ -1057,7 +1070,7 @@ function renderCalendar(t){
     const c = crowd(d, t.destId), [, cls] = crowdLabel(c), plan = dayPlan(t, d);
     const abbr = plan.map(id => parkAbbr(parkName(t, id))).join(" · ");
     cells += `<button class="cal-day${d === homeDay ? " sel" : ""}${d === today ? " today" : ""}" data-day="${d}" aria-label="${fmtDay(d,{weekday:"long",month:"long",day:"numeric"})}">
-      <span class="cd-num">${num}</span><span class="cd-parks${abbr ? "" : " none"}">${abbr || "＋"}</span><span class="crowd ${cls}">${c}</span></button>`;
+      <span class="cd-num">${num}</span><span class="cd-parks${abbr ? "" : " none"}">${abbr || "Plan"}</span><span class="crowd ${cls}">${c}</span></button>`;
   }
   const planned = days.filter(d => dayPlan(t, d).length).length;
   const avg = Math.round(days.reduce((a, d) => a + crowd(d, t.destId), 0) / days.length);
@@ -1065,11 +1078,17 @@ function renderCalendar(t){
   const range = days.length > 1 ? `${fmtDay(first,{month:"short",day:"numeric"})} – ${fmtDay(last,{month:"short",day:"numeric"})}` : fmtDay(first,{month:"short",day:"numeric"});
   $("#calCard").innerHTML = `
     <div class="row" style="justify-content:space-between"><h2 style="margin:0">${homeDay ? esc(t.name) : "Trip calendar"}</h2><span class="muted">${monthLabel}</span></div>
+    ${upcomingTrips().length > 1 ? `<select id="homeTripSel" style="margin-top:10px">${upcomingTrips().map(x => `<option value="${x.id}" ${x.id === t.id ? "selected" : ""}>${esc(x.name)} · ${fmtDay(x.date,{month:"short",day:"numeric"})}${x.endDate && x.endDate !== x.date ? "–" + fmtDay(x.endDate,{month:"short",day:"numeric"}) : ""}</option>`).join("")}</select>` : ""}
     <div class="muted cal-sum">${days.length} day${days.length === 1 ? "" : "s"} · ${range} · ${planned} of ${days.length} planned${parks.length ? ` · ${parks.map(id => parkAbbr(parkName(t, id))).join(", ")}` : ""} · avg crowd ${avg}/10</div>
     <div class="cal">${cells}</div>
     <div class="legend">Crowd estimate: <span class="crowd c-low">1–3 low</span><span class="crowd c-mid">4–6</span><span class="crowd c-high">7–8</span><span class="crowd c-max">9–10 very busy</span></div>
-    ${homeDay ? "" : `<p class="muted" style="font-size:.8rem;margin:10px 0 0">Tap a day to plan its parks and see your rides. Crowd numbers are estimates from season, holidays and day of week, not official forecasts.</p>`}`;
+    ${homeDay ? "" : `
+      ${!t.endDate ? `<p class="err" style="margin:12px 0 0">This trip has no departure date yet, so it shows one day. <button onclick="showTab('trips');startEdit('${t.id}')">Add departure date</button></p>` : ""}
+      <div class="row" style="margin-top:12px"><button class="primary" id="planNext">${planned < days.length ? `Plan day ${days.findIndex(d => !dayPlan(t, d).length) + 1} →` : "Review day 1 →"}</button><span class="muted" style="font-size:.85rem">or tap any day to pick its parks</span></div>
+      <p class="muted" style="font-size:.78rem;margin:10px 0 0">Crowd numbers are estimates from season, holidays and day of week, not official forecasts.</p>`}`;
   $("#calCard").querySelectorAll("[data-day]").forEach(b => b.onclick = () => b.dataset.day === homeDay ? closeDay() : openDay(b.dataset.day));
+  const pn = $("#planNext"); if (pn) pn.onclick = () => openDay(days.find(d => !dayPlan(t, d).length) || days[0]);
+  const ts = $("#homeTripSel"); if (ts) ts.onchange = () => showTripOnHome(ts.value);
 }
 async function renderDay(t, ds){
   const days = tripDays(t), i = days.indexOf(ds), c = crowd(ds, t.destId), [lab, cls] = crowdLabel(c);
@@ -1124,7 +1143,7 @@ async function renderDay(t, ds){
 }
 
 /* ---------- updates: never get stuck on an old saved copy ---------- */
-const BUILD = "202611232309";
+const BUILD = "202611232322";
 async function checkForUpdate(){
   try {
     const r = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });

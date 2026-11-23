@@ -58,7 +58,7 @@
 
   /* tabs */
   .tabs{display:flex;gap:6px;margin-top:18px;overflow-x:auto}
-  .tabs button{white-space:nowrap;flex:1 0 auto;padding:8px 12px}
+  .tabs button{white-space:nowrap;flex:1 0 auto;padding:8px 11px;font-size:.95rem}
   .tabs button.on{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}
 
   /* waits */
@@ -143,6 +143,24 @@
   .chip input[type=checkbox]:checked{background:var(--gold);border-color:var(--gold)}
   .chip input[type=checkbox]:checked::after{content:"";width:5px;height:9px;border:solid #1b1640;border-width:0 2.5px 2.5px 0;transform:translateY(-1px) rotate(45deg)}
   .update-bar{white-space:nowrap;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));z-index:50;box-shadow:0 6px 24px #0008}
+
+  /* trip calendar */
+  .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:12px}
+  .cal-h{text-align:center;font-size:.68rem;color:var(--mute);letter-spacing:.08em;padding-bottom:2px}
+  .cal-day{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px;padding:7px 1px 7px;border-radius:12px;border:1px solid var(--line);background:#00000030;min-height:76px;min-width:0;font:inherit;color:var(--ink)}
+  button.cal-day{cursor:pointer}
+  .cal-day.out{background:transparent;border-color:transparent;opacity:.3}
+  .cal-day.sel{border-color:var(--gold);background:#f2c46d26;box-shadow:0 0 0 1px var(--gold) inset}
+  .cal-day.today .cd-num{color:var(--gold)}
+  .cd-num{font-weight:600;font-variant-numeric:tabular-nums;font-size:.95rem}
+  .cd-parks{font-size:.6rem;font-weight:600;letter-spacing:.02em;min-height:1.2em;text-align:center;line-height:1.2;color:var(--ink);overflow-wrap:anywhere}
+  .cd-parks.none{color:var(--mute);font-weight:400}
+  .crowd{font-size:.68rem;font-weight:700;border-radius:999px;padding:1px 7px;font-variant-numeric:tabular-nums}
+  .c-low{background:#6fe0b433;color:var(--mint)} .c-mid{background:#f5c45233;color:#f5c452} .c-high{background:#ff9a5c33;color:#ff9a6b} .c-max{background:#ff7b8a33;color:var(--rose)}
+  .crowd-banner{margin-top:12px;padding:10px 12px;border-radius:12px;font-size:.92rem}
+  .cal-sum{margin-top:6px;font-size:.85rem}
+  .legend{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center;font-size:.72rem;color:var(--mute)}
+  .day-nav button{padding:8px 13px}
 </style>
 </head>
 <body>
@@ -151,14 +169,14 @@
   <h1 style="font-size:1.1rem;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">Park Day Countdown</h1>
   <div class="tabs" role="tablist">
     <button data-tab="home" class="on">Home</button>
-    <button data-tab="waits">Waits</button>
+    <button data-tab="waits">Queue times</button>
     <button data-tab="pick">Parks &amp; Rides</button>
     <button data-tab="trips">Trips</button>
   </div>
 
 <div data-panel="home">
 
-  <div class="scene" aria-hidden="true">
+  <div class="scene" id="scene" aria-hidden="true">
   <svg viewBox="0 0 400 190" preserveAspectRatio="xMidYMax meet">
     <defs>
       <linearGradient id="stone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b3384"/><stop offset="1" stop-color="#17143a"/></linearGradient>
@@ -213,7 +231,9 @@
   </svg>
 </div>
   <section class="card hero" id="hero"></section>
-  <section class="card ticker-card">
+  <section class="card" id="calCard" hidden></section>
+  <section class="card" id="dayCard" hidden></section>
+  <section class="card ticker-card" id="tickerCard">
     <div class="row" style="justify-content:space-between">
       <h2 style="margin:0">Right now in the parks</h2>
       <span class="muted" id="tickerUpdated"></span>
@@ -267,9 +287,11 @@
       <select id="tDest"></select>
       <div class="grid2">
         <div><label>Arrival date</label><input id="tDate" type="date" required></div>
-        <div><label>Check-in time <span id="tzHint"></span></label><input id="tTime" type="time" value="15:00" required></div>
+        <div><label>Departure date</label><input id="tEnd" type="date" required></div>
       </div>
-      <div class="row" style="margin-top:12px"><button class="primary" type="submit">Add trip</button></div>
+      <label>Check-in time <span id="tzHint"></span></label><input id="tTime" type="time" value="15:00" required>
+      <p class="err" id="tripErr" style="margin:8px 0 0"></p>
+      <div class="row" style="margin-top:12px"><button class="primary" type="submit" id="tripSubmit">Add trip</button><button type="button" id="tripCancel" hidden>Cancel</button></div>
     </form>
     <div id="tripList" style="margin-top:14px"></div>
   </section>
@@ -284,7 +306,7 @@
   </section>
 
   <footer class="muted">
-    Live wait times from <a href="https://themeparks.wiki" target="_blank" rel="noopener">ThemeParks.wiki</a>.
+    Live queue times from <a href="https://themeparks.wiki" target="_blank" rel="noopener">ThemeParks.wiki</a>.
     Built-in ride art is original. Not affiliated with any park operator. Times refresh every 5 minutes.
   </footer>
 <input type="file" id="photoInput" accept="image/*" hidden>
@@ -313,7 +335,7 @@ function showTab(t){
   document.querySelectorAll("[data-panel]").forEach(p => p.hidden = p.dataset.panel !== t);
   if (t === "pick") renderPicker();
   if (t === "waits") renderWaits();
-  if (t === "home") renderTicker();
+  if (t === "home"){ renderHome(); if (!homeDay) renderTicker(); }
 }
 
 /* ---------- countdown ---------- */
@@ -353,10 +375,30 @@ function tripFmt(t, opts){
   try { return new Date(tripTime(t)).toLocaleString(undefined, o); } catch(e){ delete o.timeZone; return new Date(tripTime(t)).toLocaleString(undefined, o); }
 }
 function differentZone(t){ return t.tz && MY_TZ && tzOffset(tripTime(t), t.tz) !== tzOffset(tripTime(t), MY_TZ); }
+function tripEnd(t){
+  const end = t.endDate || t.date;
+  if (t.tz){ try { return zonedTime(end, "23:59", t.tz); } catch(e){} }
+  return new Date(`${end}T23:59`).getTime();
+}
 function nextTrip(){
   const now = Date.now();
-  return state.trips.filter(t => tripTime(t) > now - 864e5*7) // keep showing for a week after arrival
-    .sort((a,b) => tripTime(a) - tripTime(b))[0];
+  return state.trips.filter(t => tripEnd(t) > now).sort((a,b) => tripTime(a) - tripTime(b))[0];
+}
+/* ---------- plain-date helpers (YYYY-MM-DD, no time zone surprises) ---------- */
+function addDays(ds, n){ const d = new Date(ds + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function dowOf(ds){ return new Date(ds + "T00:00:00Z").getUTCDay(); }
+function daysBetween(a, b){ return Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 864e5); }
+function fmtDay(ds, o){ return new Date(ds + "T12:00:00Z").toLocaleDateString(undefined, Object.assign({ timeZone: "UTC" }, o)); }
+function todayIn(tz){
+  try {
+    const p = {}; new Intl.DateTimeFormat("en-US", { timeZone: tz || undefined, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).forEach(x => p[x.type] = x.value);
+    return `${p.year}-${p.month}-${p.day}`;
+  } catch(e){ return new Date().toISOString().slice(0, 10); }
+}
+function tripDays(t){
+  const out = [], end = t.endDate && t.endDate >= t.date ? t.endDate : t.date;
+  for (let d = t.date; d <= end && out.length < 62; d = addDays(d, 1)) out.push(d);
+  return out;
 }
 function renderHero(){
   const t = nextTrip(), el = $("#hero");
@@ -372,7 +414,11 @@ function renderHero(){
     + " · Check-in " + tripFmt(t, {hour:"numeric",minute:"2-digit",timeZoneName:"short"})
     + (differentZone(t) ? `<div style="font-size:.8rem;margin-top:4px">That's ${new Date(tripTime(t)).toLocaleString(undefined,{weekday:"short",hour:"numeric",minute:"2-digit"})} your time</div>` : "");
   if (ms <= 0){
-    el.innerHTML = `<div class="trip">${esc(t.name)}</div><p style="font-size:1.4rem;margin:14px 0 4px">Check-in time! 🎉</p><p class="muted">${when}</p>`;
+    const days = tripDays(t), today = todayIn(t.tz), i = days.indexOf(today);
+    el.innerHTML = `<div class="trip">${esc(t.name)}</div>
+      <p style="font-size:1.4rem;margin:14px 0 4px">${i >= 0 ? `Day ${i + 1} of ${days.length} 🎉` : "Check-in time! 🎉"}</p>
+      <p class="muted">${i >= 0 ? "Enjoy the parks!" : when}</p>
+      ${i >= 0 ? `<button class="primary" onclick="openDay('${today}')">See today's plan</button>` : ""}`;
     return;
   }
   const d = Math.floor(ms/864e5); ms -= d*864e5;
@@ -387,16 +433,49 @@ function renderHero(){
 setInterval(renderHero, 1000);
 
 /* ---------- trips ---------- */
+let editingId = null;
+$("#tDate").onchange = () => {
+  $("#tEnd").min = $("#tDate").value;
+  if (!$("#tEnd").value || $("#tEnd").value < $("#tDate").value) $("#tEnd").value = $("#tDate").value;
+};
 $("#tripForm").onsubmit = e => {
   e.preventDefault();
+  const date = $("#tDate").value, end = $("#tEnd").value || date;
+  if (end < date){ $("#tripErr").textContent = "Departure can't be before arrival."; return; }
+  if (daysBetween(date, end) > 60){ $("#tripErr").textContent = "Trips can be up to 60 days long."; return; }
+  $("#tripErr").textContent = "";
   const r = RESORTS.find(x => x.id === $("#tDest").value);
-  state.trips.push({ id: crypto.randomUUID?.() || String(Date.now()), name: $("#tName").value.trim(), date: $("#tDate").value, time: $("#tTime").value,
-    destId: r?.id || null, destName: r?.name || "", tz: r?.tz || null });
-  // first trip to a resort: point Parks & Rides at it too
-  if (r && !Object.keys(state.parks).length){ state.destId = r.id; if ($("#destSel").querySelector(`option[value="${r.id}"]`)) $("#destSel").value = r.id; }
-  const keep = $("#tDest").value;
-  save(); e.target.reset(); $("#tTime").value = "15:00"; $("#tDest").value = keep; tzHint(); renderTrips(); renderHero();
+  const fields = { name: $("#tName").value.trim(), date, endDate: end, time: $("#tTime").value,
+    destId: r?.id || null, destName: r?.name || "", tz: r?.tz || null };
+  const t = editingId && state.trips.find(x => x.id === editingId);
+  if (t){
+    const resortChanged = t.destId !== fields.destId;
+    Object.assign(t, fields);
+    // keep day plans that still fall inside the trip (and still match the resort)
+    t.days = resortChanged ? {} : Object.fromEntries(Object.entries(t.days || {}).filter(([d]) => d >= date && d <= end));
+  } else {
+    state.trips.push(Object.assign({ id: crypto.randomUUID?.() || String(Date.now()), days: {} }, fields));
+    // first trip to a resort: point Parks & Rides at it too
+    if (r && !Object.keys(state.parks).length){ state.destId = r.id; if ($("#destSel").querySelector(`option[value="${r.id}"]`)) $("#destSel").value = r.id; }
+  }
+  save(); resetTripForm(); renderTrips(); renderHero(); renderHome();
 };
+function resetTripForm(){
+  const keep = $("#tDest").value;
+  editingId = null; $("#tripForm").reset();
+  $("#tTime").value = "15:00"; $("#tDest").value = keep; $("#tEnd").min = "";
+  $("#tripSubmit").textContent = "Add trip"; $("#tripCancel").hidden = true; $("#tripErr").textContent = "";
+  tzHint();
+}
+$("#tripCancel").onclick = resetTripForm;
+function startEdit(id){
+  const t = state.trips.find(x => x.id === id); if (!t) return;
+  editingId = id;
+  $("#tName").value = t.name; $("#tDest").value = t.destId || ""; $("#tDate").value = t.date;
+  $("#tEnd").value = t.endDate || t.date; $("#tEnd").min = t.date; $("#tTime").value = t.time || "15:00";
+  $("#tripSubmit").textContent = "Save changes"; $("#tripCancel").hidden = false; $("#tripErr").textContent = "";
+  tzHint(); $("#tripForm").scrollIntoView({ block: "start", behavior: "smooth" }); $("#tName").focus({ preventScroll: true });
+}
 function tzHint(){
   const r = RESORTS.find(x => x.id === $("#tDest").value), el = $("#tzHint");
   if (!el) return;
@@ -413,11 +492,18 @@ function tzHint(){
 })();
 function renderTrips(){
   const list = [...state.trips].sort((a,b) => tripTime(a)-tripTime(b));
-  $("#tripList").innerHTML = list.length ? list.map(t => `
-    <div class="trip-item"><div><b>${esc(t.name)}</b><br><span class="muted">${t.destName ? esc(t.destName) + "<br>" : ""}${tripFmt(t,{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",timeZoneName:"short"})}</span></div>
-    <button data-del="${t.id}">Remove</button></div>`).join("") : `<p class="muted">No trips yet.</p>`;
+  $("#tripList").innerHTML = list.length ? list.map(t => {
+    const n = tripDays(t).length;
+    const range = t.endDate && t.endDate !== t.date
+      ? `${fmtDay(t.date,{month:"short",day:"numeric"})} – ${fmtDay(t.endDate,{month:"short",day:"numeric",year:"numeric"})}`
+      : fmtDay(t.date,{month:"short",day:"numeric",year:"numeric"});
+    return `<div class="trip-item"><div><b>${esc(t.name)}</b><br><span class="muted">${t.destName ? esc(t.destName) + "<br>" : ""}${range} · ${n} day${n === 1 ? "" : "s"}<br>Check-in ${tripFmt(t,{hour:"numeric",minute:"2-digit",timeZoneName:"short"})}</span></div>
+    <div class="row" style="flex-wrap:nowrap"><button data-edit="${t.id}">Edit</button><button data-del="${t.id}">Remove</button></div></div>`;
+  }).join("") : `<p class="muted">No trips yet.</p>`;
+  $("#tripList").querySelectorAll("[data-edit]").forEach(b => b.onclick = () => startEdit(b.dataset.edit));
   $("#tripList").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
-    state.trips = state.trips.filter(t => t.id !== b.dataset.del); save(); renderTrips(); renderHero();
+    if (editingId === b.dataset.del) resetTripForm();
+    state.trips = state.trips.filter(t => t.id !== b.dataset.del); save(); renderTrips(); renderHero(); renderHome();
   });
 }
 
@@ -445,7 +531,7 @@ async function loadDestinations(){
     }
     sel.value = state.destId;
     sel.onchange = () => { state.destId = sel.value; save(); renderPicker(); };
-    renderPicker();
+    renderPicker(); renderHome();
   } catch(e){
     $("#destSel").innerHTML = `<option>Couldn't load resorts</option>`;
     $("#parkChips").innerHTML = `<p class="err">Couldn't reach the wait-time service (${esc(e.message)}).</p>`;
@@ -591,7 +677,7 @@ async function renderWaits(force){
 $("#refresh").onclick = () => renderWaits(true);
 setInterval(() => {
   if (!$('[data-panel="waits"]').hidden) renderWaits(true);
-  if (!$('[data-panel="home"]').hidden) renderTicker(true);
+  if (!$('[data-panel="home"]').hidden){ if (homeDay) renderHome(); else renderTicker(true); }
 }, 5*60e3);
 
 
@@ -797,7 +883,7 @@ async function renderTicker(force){
   const parkIds = Object.keys(state.parks).filter(id => (state.favs[id] || []).length);
   if (!parkIds.length){
     box.classList.add("empty");
-    box.innerHTML = `<div class="ticker-empty muted">Star your favorite rides and they'll scroll by here with live waits.<div style="margin-top:10px"><button onclick="showTab('pick')">Pick parks &amp; rides</button></div></div>`;
+    box.innerHTML = `<div class="ticker-empty muted">Star your favorite rides and they'll scroll by here with live queue times.<div style="margin-top:10px"><button onclick="showTab('pick')">Pick parks &amp; rides</button></div></div>`;
     $("#tickerUpdated").textContent = ""; return;
   }
   const items = []; let failed = 0;
@@ -858,8 +944,187 @@ function applyIcon(){
 document.querySelectorAll(".icon-opt").forEach(b => b.onclick = () => { state.icon = b.dataset.icon; save(); applyIcon(); });
 applyIcon();
 
+
+/* ---------- crowd estimates (season + holidays + day of week; not official) ---------- */
+const REGION = {
+  "e957da41-3552-4cf6-b636-5babc5cbc4e5": "us-east", "bfc89fd6-314d-44b4-b89e-df1a89cf991e": "us-west",
+  "e8d0207f-da8a-4048-bec8-117aa946b2c2": "fr", "faff60df-c766-4470-8adb-dee78e813f42": "jp",
+  "6e1464ca-1e9b-49c3-8937-c5c6f6675057": "cn", "abcfffe7-01f2-4f92-ae61-5093346f5a68": "hk",
+};
+const CNY = { 2025:"2025-01-29", 2026:"2026-02-17", 2027:"2027-02-06", 2028:"2028-01-26", 2029:"2029-02-13", 2030:"2030-02-03", 2031:"2031-01-23", 2032:"2032-02-11" };
+function nthDow(y, m, dow, n){            // m: 0-11; n: 1..5, or -1 for last
+  if (n > 0){ const first = new Date(Date.UTC(y, m, 1)).getUTCDay(); return Date.UTC(y, m, 1 + (dow - first + 7) % 7 + 7 * (n - 1)); }
+  const lastD = new Date(Date.UTC(y, m + 1, 0)); return Date.UTC(y, m + 1, -((lastD.getUTCDay() - dow + 7) % 7));
+}
+function easter(y){
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25),
+        g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4,
+        l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  return Date.UTC(y, Math.floor((h + l - 7 * m + 114) / 31) - 1, ((h + l - 7 * m + 114) % 31) + 1);
+}
+function crowd(ds, destId){
+  const DAY = 864e5, t = Date.parse(ds + "T00:00:00Z"), D = new Date(t), y = D.getUTCFullYear(), mo = D.getUTCMonth(), dow = D.getUTCDay();
+  const near = (x, before, after) => t >= x - before * DAY && t <= x + after * DAY;
+  const md = (m, d) => Date.UTC(y, m - 1, d);
+  const between = (m1, d1, m2, d2) => t >= md(m1, d1) && t <= md(m2, d2);
+  const region = REGION[destId] || "us-east";
+  let s;
+  if (region === "us-east" || region === "us-west"){
+    s = [4,5,7,6,5,7,8,5,3,5,5,6][mo];
+    if (between(1,1,1,3)) s = 9; else if (between(1,4,1,15)) s = 3;
+    if (near(nthDow(y,0,1,3), 2, 0)) s += 2;          // MLK weekend
+    if (near(nthDow(y,1,1,3), 2, 4)) s += 2;          // Presidents' Day week
+    if (between(3,7,4,12)) s += 1;                     // spring-break season
+    if (near(easter(y), 7, 7)) s += 2;
+    if (near(nthDow(y,4,1,-1), 3, 0)) s += 2;          // Memorial Day weekend
+    if (between(7,2,7,5)) s += 2;
+    if (near(nthDow(y,8,1,1), 3, 0)) s += 1;           // Labor Day weekend
+    if (near(nthDow(y,9,1,2), 3, 0)) s += 1;           // October long weekend
+    if (near(nthDow(y,10,4,4), 5, 3)) s = Math.max(s, 8); // Thanksgiving week
+    if (between(12,1,12,15)) s = 5;
+    if (between(12,20,12,31)) s = 10;
+    s += (region === "us-west" ? [1.5,-0.5,-1,-1,-1,0.5,2] : [0,0.5,-0.5,-0.5,-0.5,0.5,1])[dow];
+  } else if (region === "fr"){
+    s = [3,6,4,7,6,5,8,9,4,5,4,7][mo];
+    if (between(10,18,11,3)) s += 2;
+    if (between(12,20,12,31) || between(1,1,1,3)) s = 9;
+    if (near(easter(y), 7, 14)) s += 1;
+    s += [1.5,-0.5,-1,0.5,-1,0,2][dow];               // French schools are off Wednesday afternoons
+  } else if (region === "jp"){
+    s = [6,4,7,6,5,4,6,8,5,6,6,7][mo];
+    if (between(4,29,5,5)) s = 10;                     // Golden Week
+    if (between(8,10,8,16)) s += 2;                    // Obon
+    if (between(12,29,12,31) || between(1,1,1,3)) s = 9;
+    const mmdd = ds.slice(5);
+    if (["01-01","02-11","02-23","03-20","04-29","05-03","05-04","05-05","11-03","11-23"].includes(mmdd)) s += 2;
+    if (mo === 0 && t === nthDow(y,0,1,2)) s += 2;     // Coming of Age Day
+    s += [2,-0.5,-1,-1,-1,0,2.5][dow];
+  } else {                                             // Shanghai / Hong Kong
+    const cn = region === "cn";
+    s = (cn ? [5,6,5,5,6,6,7,7,4,6,4,5] : [5,6,4,5,5,4,7,7,4,6,4,6])[mo];
+    const c = CNY[y]; if (c && near(Date.parse(c + "T00:00:00Z"), 2, 7)) s = 10;
+    if (between(10,1,10,7)) s = cn ? 10 : 9;           // National Day Golden Week
+    if (between(5,1,5,5)) s += cn ? 4 : 2;             // Labour Day holiday
+    if (!cn){ if (near(easter(y), 3, 3)) s += 2; if (between(12,22,12,31)) s = Math.max(s, 8); }
+    s += (cn ? [2,-1,-1,-1,-1,0,2.5] : [1.5,-0.5,-1,-1,-1,0,2])[dow];
+  }
+  return Math.max(1, Math.min(10, Math.round(s)));
+}
+function crowdLabel(n){ return n <= 3 ? ["Low","c-low"] : n <= 6 ? ["Moderate","c-mid"] : n <= 8 ? ["Busy","c-high"] : ["Very busy","c-max"]; }
+
+/* ---------- trip calendar + day view ---------- */
+let homeDay = null;
+function parksForDest(destId){ return (destinations.find(d => d.id === destId) || {}).parks || []; }
+function parkName(t, id){ return (parksForDest(t.destId).find(p => p.id === id) || {}).name || state.parks[id]?.name || "Park"; }
+function parkAbbr(name){
+  const n = name.toLowerCase();
+  const map = [[/magic kingdom/,"MK"],[/epcot/,"EP"],[/hollywood studios/,"HS"],[/animal kingdom/,"AK"],[/typhoon/,"TL"],[/blizzard/,"BB"],
+    [/california adventure/,"DCA"],[/adventure world/,"AW"],[/walt disney studios/,"WDS"],[/disneysea/,"TDS"],[/tokyo disneyland/,"TDL"],
+    [/shanghai/,"SH"],[/hong kong/,"HK"],[/disneyland park/,"DL"]];
+  for (const [re, a] of map) if (re.test(n)) return a;
+  return name.split(/\s+/).filter(w => !/^(disney'?s?|the|park|theme|of|and|&)$/i.test(w)).map(w => w[0]).join("").slice(0, 3).toUpperCase() || name.slice(0, 3);
+}
+function dayPlan(t, ds){ return ((t.days || {})[ds] || {}).parks || []; }
+function renderHome(){
+  const t = nextTrip(), cal = $("#calCard"), day = $("#dayCard");
+  if (!cal) return;
+  if (!t){ homeDay = null; cal.hidden = true; day.hidden = true; setHomeMode(); return; }
+  if (homeDay && !tripDays(t).includes(homeDay)) homeDay = null;
+  cal.hidden = false;
+  renderCalendar(t);
+  if (homeDay) renderDay(t, homeDay);
+  setHomeMode();
+}
+function setHomeMode(){
+  const d = !!homeDay;
+  $("#scene").hidden = d; $("#hero").hidden = d; $("#tickerCard").hidden = d; $("#dayCard").hidden = !d;
+}
+function openDay(ds){
+  homeDay = ds;
+  if ($('[data-panel="home"]').hidden) showTab("home"); else renderHome();
+  $("#calCard").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+function closeDay(){ homeDay = null; renderHome(); renderTicker(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+function renderCalendar(t){
+  const days = tripDays(t), first = days[0], last = days[days.length - 1], set = new Set(days), today = todayIn(t.tz);
+  const start = addDays(first, -dowOf(first)), end = addDays(last, 6 - dowOf(last));
+  const m1 = fmtDay(first, { month: "long", year: "numeric" }), m2 = fmtDay(last, { month: "long", year: "numeric" });
+  const monthLabel = m1 === m2 ? m1 : `${fmtDay(first,{month:"short"})} – ${fmtDay(last,{month:"short",year:"numeric"})}`;
+  let cells = ["S","M","T","W","T","F","S"].map(x => `<div class="cal-h">${x}</div>`).join("");
+  for (let d = start; d <= end; d = addDays(d, 1)){
+    const num = +d.slice(8);
+    if (!set.has(d)){ cells += `<div class="cal-day out"><span class="cd-num">${num}</span></div>`; continue; }
+    const c = crowd(d, t.destId), [, cls] = crowdLabel(c), plan = dayPlan(t, d);
+    const abbr = plan.map(id => parkAbbr(parkName(t, id))).join(" · ");
+    cells += `<button class="cal-day${d === homeDay ? " sel" : ""}${d === today ? " today" : ""}" data-day="${d}" aria-label="${fmtDay(d,{weekday:"long",month:"long",day:"numeric"})}">
+      <span class="cd-num">${num}</span><span class="cd-parks${abbr ? "" : " none"}">${abbr || "＋"}</span><span class="crowd ${cls}">${c}</span></button>`;
+  }
+  const planned = days.filter(d => dayPlan(t, d).length).length;
+  const avg = Math.round(days.reduce((a, d) => a + crowd(d, t.destId), 0) / days.length);
+  const parks = [...new Set(days.flatMap(d => dayPlan(t, d)))];
+  const range = days.length > 1 ? `${fmtDay(first,{month:"short",day:"numeric"})} – ${fmtDay(last,{month:"short",day:"numeric"})}` : fmtDay(first,{month:"short",day:"numeric"});
+  $("#calCard").innerHTML = `
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">${homeDay ? esc(t.name) : "Trip calendar"}</h2><span class="muted">${monthLabel}</span></div>
+    <div class="muted cal-sum">${days.length} day${days.length === 1 ? "" : "s"} · ${range} · ${planned} of ${days.length} planned${parks.length ? ` · ${parks.map(id => parkAbbr(parkName(t, id))).join(", ")}` : ""} · avg crowd ${avg}/10</div>
+    <div class="cal">${cells}</div>
+    <div class="legend">Crowd estimate: <span class="crowd c-low">1–3 low</span><span class="crowd c-mid">4–6</span><span class="crowd c-high">7–8</span><span class="crowd c-max">9–10 very busy</span></div>
+    ${homeDay ? "" : `<p class="muted" style="font-size:.8rem;margin:10px 0 0">Tap a day to plan its parks and see your rides. Crowd numbers are estimates from season, holidays and day of week, not official forecasts.</p>`}`;
+  $("#calCard").querySelectorAll("[data-day]").forEach(b => b.onclick = () => b.dataset.day === homeDay ? closeDay() : openDay(b.dataset.day));
+}
+async function renderDay(t, ds){
+  const days = tripDays(t), i = days.indexOf(ds), c = crowd(ds, t.destId), [lab, cls] = crowdLabel(c);
+  const plan = dayPlan(t, ds), parks = parksForDest(t.destId), isToday = ds === todayIn(t.tz);
+  let chips;
+  if (!t.destId) chips = `<p class="muted">Pick a resort for this trip on the Trips tab to plan parks.</p>`;
+  else if (!parks.length) chips = `<p class="muted">${destinations.length ? "No parks found for this resort." : "Loading parks…"}</p>`;
+  else chips = parks.map(p => `<label class="chip ${plan.includes(p.id) ? "on" : ""}"><input type="checkbox" data-dpark="${p.id}" ${plan.includes(p.id) ? "checked" : ""}> ${esc(p.name)}</label>`).join("");
+  const card = $("#dayCard");
+  card.innerHTML = `
+    <div class="row day-nav" style="justify-content:space-between">
+      <button id="backSummary">← Trip summary</button>
+      <div class="row" style="gap:6px"><button id="prevDay" ${i <= 0 ? "disabled" : ""} aria-label="Previous day">‹</button><button id="nextDay" ${i >= days.length - 1 ? "disabled" : ""} aria-label="Next day">›</button></div>
+    </div>
+    <h2 style="margin:16px 0 2px;font-size:1.4rem">Day ${i + 1} of ${days.length}</h2>
+    <div class="muted">${fmtDay(ds,{weekday:"long",month:"long",day:"numeric",year:"numeric"})}${isToday ? " · Today" : ""}</div>
+    <div class="crowd-banner ${cls}">Estimated crowds: <b>${c}/10 · ${lab}</b></div>
+    <label style="margin-top:14px">Parks this day</label>
+    <div>${chips}</div>
+    <div id="dayRides" style="margin-top:6px"></div>`;
+  $("#backSummary").onclick = closeDay;
+  $("#prevDay").onclick = () => openDay(days[i - 1]);
+  $("#nextDay").onclick = () => openDay(days[i + 1]);
+  card.querySelectorAll("[data-dpark]").forEach(cb => cb.onchange = () => {
+    t.days = t.days || {};
+    const cur = new Set(dayPlan(t, ds)); cb.checked ? cur.add(cb.dataset.dpark) : cur.delete(cb.dataset.dpark);
+    t.days[ds] = { parks: parks.map(p => p.id).filter(id => cur.has(id)) };
+    save(); renderHome();
+  });
+  const box = $("#dayRides");
+  if (!plan.length){ box.innerHTML = `<p class="muted">Pick a park above to see your rides for this day.</p>`; return; }
+  box.innerHTML = (isToday ? "" : `<p class="muted" style="font-size:.8rem;margin:10px 0 0">Queue times below are live right now, not a forecast for this day.</p>`)
+    + plan.map(id => `<div class="park" data-dp="${id}"><h3 style="margin-top:14px">${esc(parkName(t, id))}</h3><p class="muted">Loading rides…</p></div>`).join("");
+  for (const id of plan){
+    const el = box.querySelector(`[data-dp="${id}"]`), favs = new Set(state.favs[id] || []);
+    const head = `<h3 style="margin-top:14px">${esc(parkName(t, id))}</h3>`;
+    const starBtn = `<button data-starpark="${id}">${favs.size ? "Edit rides" : "Star rides"}</button>`;
+    if (!favs.size){ el.innerHTML = head + `<p class="muted">No rides starred here yet. ${starBtn}</p>`; }
+    else try {
+      const rides = (await getLive(id)).filter(r => favs.has(r.id)).sort((a, b) =>
+        (a.status === "OPERATING" ? 0 : 1) - (b.status === "OPERATING" ? 0 : 1) || (standby(a) ?? 999) - (standby(b) ?? 999));
+      el.innerHTML = head + (rides.length ? rides.map(r => `<div class="ride"><div class="thumb">${thumbInner(r.id, r.name, false)}</div><div class="name">${esc(r.name)}</div>${waitBadge(r)}</div>`).join("")
+        : `<p class="muted">None of your rides here are reporting right now.</p>`) + `<div style="margin-top:8px">${starBtn}</div>`;
+    } catch(e){ el.innerHTML = head + `<p class="err">Couldn't load queue times (${esc(e.message)}).</p>`; }
+    const b = el.querySelector("[data-starpark]");
+    if (b) b.onclick = () => {
+      state.destId = t.destId; state.parks[id] = { name: parkName(t, id) }; openParks[id] = true; saveOpen(); save();
+      if ($("#destSel").querySelector(`option[value="${t.destId}"]`)) $("#destSel").value = t.destId;
+      showTab("pick"); window.scrollTo({ top: 0 });
+    };
+  }
+}
+
 /* ---------- updates: never get stuck on an old saved copy ---------- */
-const BUILD = "202611232227";
+const BUILD = "202611232309";
 async function checkForUpdate(){
   try {
     const r = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });
@@ -878,6 +1143,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) chec
 
 /* ---------- boot ---------- */
 renderHero(); renderTrips(); loadDestinations();
+renderHome();
 loadPhotos().then(() => { renderTicker(); renderPackStatus(); });
 </script>
 </body>

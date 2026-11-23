@@ -135,6 +135,14 @@
   .park-head .count{font-size:.8rem;white-space:nowrap}
   .chev{font-size:1.4rem;line-height:1;color:var(--mute);transition:transform .2s}
   .park.open .chev{transform:rotate(90deg)}
+
+  /* home-screen app: keep clear of the status bar */
+  @media (display-mode: standalone){ .wrap{padding-top:calc(16px + max(env(safe-area-inset-top), 50px))} }
+  /* round check boxes that match the theme */
+  .chip input[type=checkbox]{-webkit-appearance:none;appearance:none;width:20px;height:20px;min-height:0;border-radius:50%;border:2px solid var(--mute);background:transparent;display:inline-grid;place-content:center;margin:0;padding:0}
+  .chip input[type=checkbox]:checked{background:var(--gold);border-color:var(--gold)}
+  .chip input[type=checkbox]:checked::after{content:"";width:5px;height:9px;border:solid #1b1640;border-width:0 2.5px 2.5px 0;transform:translateY(-1px) rotate(45deg)}
+  .update-bar{white-space:nowrap;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));z-index:50;box-shadow:0 6px 24px #0008}
 </style>
 </head>
 <body>
@@ -849,6 +857,24 @@ function applyIcon(){
 }
 document.querySelectorAll(".icon-opt").forEach(b => b.onclick = () => { state.icon = b.dataset.icon; save(); applyIcon(); });
 applyIcon();
+
+/* ---------- updates: never get stuck on an old saved copy ---------- */
+const BUILD = "202611232227";
+async function checkForUpdate(){
+  try {
+    const r = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return;
+    const latest = (await r.text()).trim();
+    if (latest && latest !== BUILD && !document.querySelector(".update-bar")){
+      const b = document.createElement("button");
+      b.className = "primary update-bar"; b.textContent = "Update ready · tap to refresh";
+      b.onclick = () => location.replace(location.pathname + "?v=" + encodeURIComponent(latest) + location.hash);
+      document.body.appendChild(b);
+    }
+  } catch(e){}
+}
+checkForUpdate();
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate(); });
 
 /* ---------- boot ---------- */
 renderHero(); renderTrips(); loadDestinations();

@@ -464,6 +464,8 @@ function icsFor(t){
     "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Reservations are open now","TRIGGER:PT0M","END:VALARM",
     "END:VEVENT","END:VCALENDAR"].join("\r\n");
 }
+// real calendar files come from the Cloudflare copy of this site (iPhone needs a real web address)
+const CAL_HOST = /\.pages\.dev$/.test(location.hostname) ? "" : "https://park-countdown.pages.dev";
 let resShownFor = "";
 async function addToAppleCalendar(t){
   const ics = icsFor(t), name = "reservations-open.ics";
@@ -496,10 +498,12 @@ function renderRes(){
       card.innerHTML = `<div class="row" style="justify-content:space-between;align-items:baseline"><h2 style="margin:0">Dining &amp; extras open in</h2><span class="muted" style="font-size:.8rem">60 days before check-in</span></div>
         <div class="clock" id="resClock"></div>
         <div class="muted" style="font-size:.9rem">${local} ${zone}${yours}</div>
-        <div class="row" style="margin-top:12px"><button class="primary" id="resIcs">Add to Apple Calendar</button><a class="btn" id="resGcal" target="_blank" rel="noopener" style="text-decoration:none;color:var(--ink)">Google Calendar</a></div>
-        <p class="muted" style="font-size:.78rem;margin:8px 0 0" id="resHelp">Apple Calendar gets alerts the day before, 15 minutes before, and at opening time. If nothing happens from the home-screen app, open the site in Safari and try again.</p>`;
-      $("#resIcs").onclick = () => addToAppleCalendar(t);
+        <div class="row" style="margin-top:12px"><a class="btn primary" id="resIcs" target="_blank" rel="noopener" style="text-decoration:none">Add to Apple Calendar</a><a class="btn" id="resGcal" target="_blank" rel="noopener" style="text-decoration:none;color:var(--ink)">Google Calendar</a></div>
+        <p class="muted" style="font-size:.78rem;margin:8px 0 0" id="resHelp">Apple Calendar gets alerts the day before, 15 minutes before, and at opening time. Tap Add All (or Add to Calendar) on the screen that opens.</p>`;
       const z = ms => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+      $("#resIcs").href = CAL_HOST + "/ics?title=" + encodeURIComponent(`Book dining & extras: ${t.name}`)
+        + "&start=" + z(resTime(t)) + "&mins=30&uid=" + encodeURIComponent("res-" + t.id)
+        + "&desc=" + encodeURIComponent(`Reservations open 60 days before check-in (${t.destName || "your trip"}).`);
       $("#resGcal").href = "https://calendar.google.com/calendar/render?action=TEMPLATE"
         + "&text=" + encodeURIComponent(`Book dining & extras: ${t.name}`)
         + "&dates=" + z(resTime(t)) + "/" + z(resTime(t) + 30*60e3)
@@ -1280,7 +1284,7 @@ async function renderDay(t, ds){
 }
 
 /* ---------- updates: never get stuck on an old saved copy ---------- */
-const BUILD = "202611240251";
+const BUILD = "202611240258";
 async function checkForUpdate(){
   try {
     const r = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });

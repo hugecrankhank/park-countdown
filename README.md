@@ -15,3 +15,7 @@ Live wait times come from [ThemeParks.wiki](https://themeparks.wiki). Not affili
 It's a single `index.html`, so no build step is needed. Turn on GitHub Pages (Settings → Pages → deploy from `main`, root) or connect the repo to Cloudflare Pages.
 
 Live at https://hugecrankhank.github.io/park-countdown/
+
+## Calendar reminders (Cloudflare Pages)
+
+iPhone only offers "Add to Calendar" for calendar files that come from a real web address. `functions/ics.js` makes those files when the site runs on Cloudflare Pages (it's ignored on GitHub Pages). Connect this repo in Cloudflare → Workers & Pages → Create → Pages → Connect to Git, with no build command and no output folder. The site expects it at `https://park-countdown.pages.dev`; if Cloudflare gives a different address, update `CAL_HOST` in `index.html`.

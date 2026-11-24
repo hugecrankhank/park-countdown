@@ -58,7 +58,7 @@
 
   /* tabs */
   .tabs{display:flex;gap:6px;margin-top:18px;overflow-x:auto}
-  .tabs button{white-space:nowrap;flex:1 0 auto;padding:8px 11px;font-size:.95rem}
+  .tabs{gap:5px}.tabs button{white-space:nowrap;flex:1 0 auto;padding:8px 9px;font-size:.9rem}
   .tabs button.on{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}
 
   /* waits */
@@ -166,6 +166,10 @@
   .stepper button{width:40px;height:40px;padding:0;font-size:1.3rem;line-height:1;border-radius:50%}
   /* home-screen app: solid strip behind the status bar so content doesn't run under the clock */
   @media (display-mode: standalone){ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#0e1230;z-index:100} }
+
+  .unit{text-align:center}.unit.sm{padding:8px 4px}.unit.sm b{font-size:clamp(1.3rem,6vw,2rem);color:var(--mint)}
+  a.btn{display:inline-block;cursor:pointer}a.btn.primary{background:var(--gold);color:#1b1640;border-color:var(--gold);font-weight:600}
+  .chip .crowd{margin-left:2px}
 </style>
 </head>
 <body>
@@ -236,6 +240,7 @@
   </svg>
 </div>
   <section class="card hero" id="hero"></section>
+  <section class="card" id="resCard" hidden></section>
   <section class="card" id="calCard" hidden></section>
   <section class="card" id="dayCard" hidden></section>
   <section class="card ticker-card" id="tickerCard">
@@ -438,7 +443,59 @@ function renderHero(){
     <div class="clock">${u(d,"days")}${u(h,"hours")}${u(m,"min")}${u(s,"sec")}</div>
     <div class="muted">${when}</div>`;
 }
-setInterval(renderHero, 1000);
+setInterval(() => { renderHero(); renderRes(); }, 1000);
+
+/* ---------- dining & extras reservation window: 6:00 AM resort time, 60 days before check-in ---------- */
+function resDate(t){ return addDays(t.date, -60); }
+function resTime(t){
+  if (t.tz){ try { return zonedTime(resDate(t), "06:00", t.tz); } catch(e){} }
+  return new Date(`${resDate(t)}T06:00`).getTime();
+}
+function icsFor(t){
+  const z = ms => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const start = resTime(t), title = `Book dining & extras: ${t.name}`;
+  const desc = `Reservations open 60 days before check-in (${t.destName || "your trip"}). Book dining and extras.`;
+  const esc2 = s => s.replace(/[\\;,]/g, m => "\\" + m);
+  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Park Day Countdown//EN","BEGIN:VEVENT",
+    `UID:res-${t.id}@park-countdown`, `DTSTAMP:${z(Date.now())}`, `DTSTART:${z(start)}`, `DTEND:${z(start + 30*60e3)}`,
+    `SUMMARY:${esc2(title)}`, `DESCRIPTION:${esc2(desc)}`,
+    "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Reservations open tomorrow","TRIGGER:-P1D","END:VALARM",
+    "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Reservations open in 15 minutes","TRIGGER:-PT15M","END:VALARM",
+    "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Reservations are open now","TRIGGER:PT0M","END:VALARM",
+    "END:VEVENT","END:VCALENDAR"].join("\r\n");
+}
+let resShownFor = "";
+function renderRes(){
+  const card = $("#resCard"); if (!card) return;
+  const t = nextTrip();
+  if (!t || homeDay || Date.now() > tripTime(t)){ card.hidden = true; resShownFor = ""; return; }
+  card.hidden = false;
+  const open = resTime(t), ms = open - Date.now();
+  const local = new Date(open).toLocaleString(undefined, Object.assign({ weekday:"short", month:"short", day:"numeric", year:"numeric", hour:"numeric", minute:"2-digit" }, t.tz ? { timeZone: t.tz } : {}));
+  let zone = ""; try { zone = new Intl.DateTimeFormat("en-US",{ timeZone: t.tz || undefined, timeZoneName: GENERIC_TZ ? "shortGeneric" : "short" }).formatToParts(new Date(open)).find(x => x.type === "timeZoneName").value; } catch(e){}
+  const yours = differentZone(t) ? ` · ${new Date(open).toLocaleString(undefined,{ weekday:"short", hour:"numeric", minute:"2-digit" })} your time` : "";
+  const key = t.id + (ms > 0 ? "c" : "o");
+  if (ms > 0){
+    let r = ms; const d = Math.floor(r/864e5); r -= d*864e5; const hh = Math.floor(r/36e5); r -= hh*36e5; const mm = Math.floor(r/6e4); r -= mm*6e4; const ss = Math.floor(r/1e3);
+    const u = (n,l) => `<div class="unit sm"><b>${String(n).padStart(2,"0")}</b><span>${l}</span></div>`;
+    if (resShownFor !== key){
+      card.innerHTML = `<div class="row" style="justify-content:space-between;align-items:baseline"><h2 style="margin:0">Dining &amp; extras open in</h2><span class="muted" style="font-size:.8rem">60 days before check-in</span></div>
+        <div class="clock" id="resClock"></div>
+        <div class="muted" style="font-size:.9rem">${local} ${zone}${yours}</div>
+        <div class="row" style="margin-top:12px"><a class="btn primary" id="resIcs" style="text-decoration:none">Add reminder to Calendar</a></div>
+        <p class="muted" style="font-size:.78rem;margin:8px 0 0">Saves an event with alerts the day before, 15 minutes before, and at opening time.</p>`;
+      const a = $("#resIcs");
+      a.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(icsFor(t));
+      a.download = "reservations-open.ics";
+      resShownFor = key;
+    }
+    $("#resClock").innerHTML = u(d,"days") + u(hh,"hours") + u(mm,"min") + u(ss,"sec");
+  } else if (resShownFor !== key){
+    card.innerHTML = `<h2 style="margin:0">Dining &amp; extras are open 🎉</h2>
+      <p style="margin:8px 0 0">Reservations opened ${local} ${zone}. Book your dining and extras now.</p>`;
+    resShownFor = key;
+  }
+}
 
 /* ---------- trips ---------- */
 let editingId = null;
@@ -513,7 +570,7 @@ function renderTrips(){
       ? `${fmtDay(t.date,{month:"short",day:"numeric"})} – ${fmtDay(t.endDate,{month:"short",day:"numeric",year:"numeric"})}`
       : fmtDay(t.date,{month:"short",day:"numeric",year:"numeric"});
     const onHome = home && home.id === t.id, upcoming = tripEnd(t) > Date.now();
-    return `<div class="trip-item" style="flex-direction:column;align-items:stretch"><div><b>${esc(t.name)}</b>${onHome ? ` <span class="crowd c-low" style="margin-left:4px">On Home</span>` : ""}<br><span class="muted">${t.destName ? esc(t.destName) + "<br>" : ""}${range} · ${n} day${n === 1 ? "" : "s"}<br>Check-in ${tripFmt(t,{hour:"numeric",minute:"2-digit",timeZoneName:"short"})}</span>
+    return `<div class="trip-item" style="flex-direction:column;align-items:stretch"><div><b>${esc(t.name)}</b>${onHome ? ` <span class="crowd c-low" style="margin-left:4px">On Home</span>` : ""}<br><span class="muted">${t.destName ? esc(t.destName) + "<br>" : ""}${range} · ${n} day${n === 1 ? "" : "s"}<br>Check-in ${tripFmt(t,{hour:"numeric",minute:"2-digit",timeZoneName:"short"})}<br>Dining &amp; extras open ${new Date(resTime(t)).toLocaleString(undefined, Object.assign({ month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }, t.tz ? { timeZone: t.tz } : {}))}</span>
       ${!t.endDate ? `<div class="err" style="font-size:.85rem;margin-top:4px">No departure date yet. Tap Edit to add one.</div>` : ""}</div>
     <div class="row" style="margin-top:8px">${onHome ? `<button class="primary" onclick="showTab('home')">Plan days</button>` : upcoming ? `<button data-home="${t.id}">Show on Home</button>` : ""}<button data-edit="${t.id}">Edit</button><button data-del="${t.id}">Remove</button></div></div>`;
   }).join("") : `<p class="muted">No trips yet.</p>`;
@@ -1029,6 +1086,26 @@ function crowd(ds, destId){
   }
   return Math.max(1, Math.min(10, Math.round(s)));
 }
+// park-by-park adjustment on top of the resort-wide estimate
+function parkAdjust(name, ds){
+  const n = (name || "").toLowerCase(), D = new Date(ds + "T00:00:00Z"), dow = D.getUTCDay(), mo = D.getUTCMonth();
+  if (/magic kingdom/.test(n)) return 0.5 + [0.5,0.5,0,0,0,0,0.5][dow];
+  if (/epcot/.test(n)) return [0.5,-0.5,-0.5,-0.5,-0.5,1,1][dow];
+  if (/hollywood studios/.test(n)) return 1;
+  if (/animal kingdom/.test(n)) return -1;
+  if (/typhoon|blizzard|water park/.test(n)) return (mo >= 5 && mo <= 7) ? 1 : (mo >= 10 || mo <= 1) ? -3 : -1;
+  if (/california adventure|adventure world|walt disney studios/.test(n)) return -1;
+  if (/^disneyland park$|^disneyland$/.test(n)) return 1;
+  if (/disney springs|downtown disney|disney village|ikspiari|disneytown/.test(n)) return [0.5,-0.5,-0.5,-0.5,0,1,1][dow];
+  return 0;
+}
+function crowdFor(t, ds, id){
+  const base = crowd(ds, t.destId);
+  if (!id) return base;
+  return Math.max(1, Math.min(10, Math.round(base + parkAdjust(parkName(t, id), ds))));
+}
+// the number shown for a day: its first planned park (the resort-wide estimate if nothing's planned)
+function dayCrowd(t, ds){ const plan = dayPlan(t, ds); return crowdFor(t, ds, plan.find(id => !isExtra(id)) || plan[0]); }
 function crowdLabel(n){ return n <= 3 ? ["Low","c-low"] : n <= 6 ? ["Moderate","c-mid"] : n <= 8 ? ["Busy","c-high"] : ["Very busy","c-max"]; }
 
 /* ---------- trip calendar + day view ---------- */
@@ -1077,6 +1154,7 @@ function renderHome(){
 function setHomeMode(){
   const d = !!homeDay;
   $("#scene").hidden = d; $("#hero").hidden = d; $("#tickerCard").hidden = d; $("#dayCard").hidden = !d;
+  renderRes();
 }
 function openDay(ds){
   homeDay = ds;
@@ -1093,14 +1171,14 @@ function renderCalendar(t){
   for (let d = start; d <= end; d = addDays(d, 1)){
     const num = +d.slice(8);
     if (!set.has(d)){ cells += `<div class="cal-day out"><span class="cd-num">${num}</span></div>`; continue; }
-    const c = crowd(d, t.destId), [, cls] = crowdLabel(c), plan = dayPlan(t, d);
+    const c = dayCrowd(t, d), [, cls] = crowdLabel(c), plan = dayPlan(t, d);
     const abbr = plan.map(id => placeAbbr(t, id)).join(" · ");
     const tag = d === first && d === last ? "In/Out" : d === first ? "Arrive" : d === last ? "Depart" : "";
     cells += `<button class="cal-day${d === homeDay ? " sel" : ""}${d === today ? " today" : ""}" data-day="${d}" aria-label="${fmtDay(d,{weekday:"long",month:"long",day:"numeric"})}">
       <span class="cd-num">${num}</span><span class="cd-tag">${tag}</span><span class="cd-parks${abbr ? "" : " none"}">${abbr || "Plan"}</span><span class="crowd ${cls}">${c}</span></button>`;
   }
   const planned = days.filter(d => dayPlan(t, d).length).length;
-  const avg = Math.round(days.reduce((a, d) => a + crowd(d, t.destId), 0) / days.length);
+  const avg = Math.round(days.reduce((a, d) => a + dayCrowd(t, d), 0) / days.length);
   const parks = [...new Set(days.flatMap(d => dayPlan(t, d)))];
   const range = days.length > 1 ? `${fmtDay(first,{month:"short",day:"numeric"})} – ${fmtDay(last,{month:"short",day:"numeric"})}` : fmtDay(first,{month:"short",day:"numeric"});
   $("#calCard").innerHTML = `
@@ -1112,7 +1190,7 @@ function renderCalendar(t){
       <div class="row" style="gap:10px;flex-wrap:nowrap"><button id="lenMinus" ${days.length <= 1 ? "disabled" : ""} aria-label="One day shorter">−</button><b style="min-width:4.5em;text-align:center">${days.length} day${days.length === 1 ? "" : "s"}</b><button id="lenPlus" aria-label="One day longer">+</button></div>
     </div>
     <div class="cal">${cells}</div>
-    <div class="legend">Crowd estimate: <span class="crowd c-low">1–3 low</span><span class="crowd c-mid">4–6</span><span class="crowd c-high">7–8</span><span class="crowd c-max">9–10 very busy</span></div>
+    <div class="legend">Crowds for the park you planned (resort-wide if none): <span class="crowd c-low">1–3 low</span><span class="crowd c-mid">4–6</span><span class="crowd c-high">7–8</span><span class="crowd c-max">9–10 very busy</span></div>
     ${homeDay ? "" : `
       ${days.length === 1 ? `<p class="muted" style="margin:12px 0 0;font-size:.85rem">Staying longer? Tap <b>+</b> next to Trip length to add days.</p>` : ""}
       <div class="row" style="margin-top:12px"><button class="primary" id="planNext">${planned < days.length ? `Plan day ${days.findIndex(d => !dayPlan(t, d).length) + 1} →` : "Review day 1 →"}</button><span class="muted" style="font-size:.85rem">or tap any day to pick its parks</span></div>
@@ -1124,12 +1202,13 @@ function renderCalendar(t){
   $("#lenPlus").onclick = () => setTripLength(t, days.length + 1);
 }
 async function renderDay(t, ds){
-  const days = tripDays(t), i = days.indexOf(ds), c = crowd(ds, t.destId), [lab, cls] = crowdLabel(c);
+  const days = tripDays(t), i = days.indexOf(ds), c = dayCrowd(t, ds), [lab, cls] = crowdLabel(c);
   const plan = dayPlan(t, ds), parks = parksForDest(t.destId), isToday = ds === todayIn(t.tz);
   let chips;
   if (!t.destId) chips = `<p class="muted">Pick a resort for this trip on the Trips tab to plan parks.</p>`;
   else if (!parks.length) chips = `<p class="muted">${destinations.length ? "No parks found for this resort." : "Loading parks…"}</p>`;
-  else chips = parks.concat(extrasFor(t.destId)).map(p => `<label class="chip ${plan.includes(p.id) ? "on" : ""}"><input type="checkbox" data-dpark="${p.id}" ${plan.includes(p.id) ? "checked" : ""}> ${esc(p.name)}</label>`).join("");
+  else chips = parks.concat(extrasFor(t.destId)).map(p => { const pc = crowdFor(t, ds, p.id), [, pcls] = crowdLabel(pc);
+      return `<label class="chip ${plan.includes(p.id) ? "on" : ""}"><input type="checkbox" data-dpark="${p.id}" ${plan.includes(p.id) ? "checked" : ""}> ${esc(p.name)} <span class="crowd ${pcls}">${pc}</span></label>`; }).join("");
   const card = $("#dayCard");
   card.innerHTML = `
     <div class="row day-nav" style="justify-content:space-between">
@@ -1139,8 +1218,9 @@ async function renderDay(t, ds){
     <h2 style="margin:16px 0 2px;font-size:1.4rem">Day ${i + 1} of ${days.length}</h2>
     <div class="muted">${fmtDay(ds,{weekday:"long",month:"long",day:"numeric",year:"numeric"})}${isToday ? " · Today" : ""}</div>
     ${i === 0 ? `<div class="crowd c-low" style="display:inline-block;margin-top:8px;font-size:.8rem;padding:4px 10px">✈︎ Arrival day · check-in ${tripFmt(t,{hour:"numeric",minute:"2-digit",timeZoneName:"short"})}</div> ` : ""}${i === days.length - 1 ? `<div class="crowd c-mid" style="display:inline-block;margin-top:8px;font-size:.8rem;padding:4px 10px">✈︎ Departure day</div>` : ""}
-    <div class="crowd-banner ${cls}">Estimated crowds: <b>${c}/10 · ${lab}</b></div>
-    <label style="margin-top:14px">Parks this day</label>
+    <div class="crowd-banner ${cls}">Estimated crowds${plan.length ? " at " + esc(parkName(t, plan.find(id => !isExtra(id)) || plan[0])) : " (resort-wide)"}: <b>${c}/10 · ${lab}</b></div>
+    ${plan.filter(id => !isExtra(id)).length > 1 ? `<div class="muted" style="font-size:.85rem;margin-top:6px">${plan.filter(id => !isExtra(id)).slice(1).map(id => `${esc(parkName(t, id))}: ${crowdFor(t, ds, id)}/10`).join(" · ")}</div>` : ""}
+    <label style="margin-top:14px">Parks this day <span style="font-size:.75rem">(each park's crowd estimate shown)</span></label>
     <div>${chips}</div>
     <div id="dayRides" style="margin-top:6px"></div>`;
   $("#backSummary").onclick = closeDay;
@@ -1183,7 +1263,7 @@ async function renderDay(t, ds){
 }
 
 /* ---------- updates: never get stuck on an old saved copy ---------- */
-const BUILD = "202611240136";
+const BUILD = "202611240247";
 async function checkForUpdate(){
   try {
     const r = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });

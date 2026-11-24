@@ -465,6 +465,20 @@ function icsFor(t){
     "END:VEVENT","END:VCALENDAR"].join("\r\n");
 }
 let resShownFor = "";
+async function addToAppleCalendar(t){
+  const ics = icsFor(t), name = "reservations-open.ics";
+  // 1) share sheet with the file (newer iPhones offer Calendar there)
+  try {
+    const file = new File([ics], name, { type: "text/calendar" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })){ await navigator.share({ files: [file], title: "Reservations open" }); return; }
+  } catch(e){ if (e && e.name === "AbortError") return; }
+  // 2) open the calendar file directly (Safari shows "Add to Calendar")
+  try {
+    const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
+    location.assign(url);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch(e){ $("#resHelp").textContent = "Your browser blocked the calendar file. Try the Google Calendar button."; }
+}
 function renderRes(){
   const card = $("#resCard"); if (!card) return;
   const t = nextTrip();
@@ -482,11 +496,14 @@ function renderRes(){
       card.innerHTML = `<div class="row" style="justify-content:space-between;align-items:baseline"><h2 style="margin:0">Dining &amp; extras open in</h2><span class="muted" style="font-size:.8rem">60 days before check-in</span></div>
         <div class="clock" id="resClock"></div>
         <div class="muted" style="font-size:.9rem">${local} ${zone}${yours}</div>
-        <div class="row" style="margin-top:12px"><a class="btn primary" id="resIcs" style="text-decoration:none">Add reminder to Calendar</a></div>
-        <p class="muted" style="font-size:.78rem;margin:8px 0 0">Saves an event with alerts the day before, 15 minutes before, and at opening time.</p>`;
-      const a = $("#resIcs");
-      a.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(icsFor(t));
-      a.download = "reservations-open.ics";
+        <div class="row" style="margin-top:12px"><button class="primary" id="resIcs">Add to Apple Calendar</button><a class="btn" id="resGcal" target="_blank" rel="noopener" style="text-decoration:none;color:var(--ink)">Google Calendar</a></div>
+        <p class="muted" style="font-size:.78rem;margin:8px 0 0" id="resHelp">Apple Calendar gets alerts the day before, 15 minutes before, and at opening time. If nothing happens from the home-screen app, open the site in Safari and try again.</p>`;
+      $("#resIcs").onclick = () => addToAppleCalendar(t);
+      const z = ms => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+      $("#resGcal").href = "https://calendar.google.com/calendar/render?action=TEMPLATE"
+        + "&text=" + encodeURIComponent(`Book dining & extras: ${t.name}`)
+        + "&dates=" + z(resTime(t)) + "/" + z(resTime(t) + 30*60e3)
+        + "&details=" + encodeURIComponent(`Reservations open 60 days before check-in (${t.destName || "your trip"}).`);
       resShownFor = key;
     }
     $("#resClock").innerHTML = u(d,"days") + u(hh,"hours") + u(mm,"min") + u(ss,"sec");
@@ -1263,7 +1280,7 @@ async function renderDay(t, ds){
 }
 
 /* ---------- updates: never get stuck on an old saved copy ---------- */
-const BUILD = "202611240247";
+const BUILD = "202611240251";
 async function checkForUpdate(){
   try {
     const r = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });

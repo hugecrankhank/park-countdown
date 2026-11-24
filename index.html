@@ -791,13 +791,14 @@ function rideImg(id, name){
 /* ---------- picture packs: many pictures at once, matched by file name ---------- */
 const packArt = new Map();            // compact name -> data URL
 function compact(s){
-  return String(s).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+  return String(s).replace(/[™®©℠]/g, "").replace(/&/g, " and ").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
     .replace(/\.(jpe?g|png|webp|gif|heic|avif)$/, "").replace(/[^a-z0-9]/g, "");
 }
 function packFor(name){
   if (!packArt.size) return null;
-  const k = compact(name);
+  const k = compact(name), legacy = k.replace(/and/g, "");      // older saves dropped "&"
   if (packArt.has(k)) return packArt.get(k);
+  for (const [key, val] of packArt) if (key.replace(/and/g, "") === legacy) return val;
   // closest partial match: longest pack name contained in the ride name (or the other way round)
   let best = null, bestLen = 0;
   for (const [key, val] of packArt){
@@ -1182,7 +1183,7 @@ async function renderDay(t, ds){
 }
 
 /* ---------- updates: never get stuck on an old saved copy ---------- */
-const BUILD = "202611232327";
+const BUILD = "202611240136";
 async function checkForUpdate(){
   try {
     const r = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });

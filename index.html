@@ -465,7 +465,10 @@ function icsFor(t){
     "END:VEVENT","END:VCALENDAR"].join("\r\n");
 }
 // real calendar files come from the Cloudflare copy of this site (iPhone needs a real web address)
-const CAL_HOST = /\.pages\.dev$/.test(location.hostname) ? "" : "https://park-countdown.pages.dev";
+const CAL_HOST = "https://park-countdown.pages.dev";
+function calBase(){ return CAL_HOST; }
+// the home-screen app's built-in browser can't pass calendar files to Calendar, so open real Safari there
+function inHomeScreenApp(){ try { return navigator.standalone === true || matchMedia("(display-mode: standalone)").matches; } catch(e){ return false; } }
 let resShownFor = "";
 async function addToAppleCalendar(t){
   const ics = icsFor(t), name = "reservations-open.ics";
@@ -501,7 +504,7 @@ function renderRes(){
         <div class="row" style="margin-top:12px"><a class="btn primary" id="resIcs" target="_blank" rel="noopener" style="text-decoration:none">Add to Apple Calendar</a><a class="btn" id="resGcal" target="_blank" rel="noopener" style="text-decoration:none;color:var(--ink)">Google Calendar</a></div>
         <p class="muted" style="font-size:.78rem;margin:8px 0 0" id="resHelp">Apple Calendar gets alerts the day before, 15 minutes before, and at opening time. Tap Add All (or Add to Calendar) on the screen that opens.</p>`;
       const z = ms => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-      $("#resIcs").href = CAL_HOST + "/ics?title=" + encodeURIComponent(`Book dining & extras: ${t.name}`)
+      $("#resIcs").href = (inHomeScreenApp() ? "x-safari-" : "") + calBase() + "/ics?title=" + encodeURIComponent(`Book dining & extras: ${t.name}`)
         + "&start=" + z(resTime(t)) + "&mins=30&uid=" + encodeURIComponent("res-" + t.id)
         + "&desc=" + encodeURIComponent(`Reservations open 60 days before check-in (${t.destName || "your trip"}).`);
       $("#resGcal").href = "https://calendar.google.com/calendar/render?action=TEMPLATE"
@@ -1284,7 +1287,7 @@ async function renderDay(t, ds){
 }
 
 /* ---------- updates: never get stuck on an old saved copy ---------- */
-const BUILD = "202611240258";
+const BUILD = "202611240312";
 async function checkForUpdate(){
   try {
     const r = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });

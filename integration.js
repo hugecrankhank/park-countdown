@@ -12,7 +12,7 @@ let panel=make('section','','card v27-frame-panel');panel.dataset.panel='extras'
 let galleryCard=make('section','','card v27-gallery');galleryCard.hidden=true;hero.after(galleryCard);let homeCard=make('section','','card');ticker.after(homeCard);
 let currentRoute='Explore', currentTrip='',currentDay='', photoIndex=0, ready=false;
 const button=(label,cb,primary=false)=>{let b=make('button',label,primary?'primary':'');b.type='button';b.onclick=cb;return b};
-function sendResearchArt(){if(!ready)return;const photos=resortPhotos.map(({resort,src,original,author,source,license,licenseURL})=>({resort,src,original,author,source,license,licenseURL}));const artwork=resortArt.map(({resort,src,name})=>({resort,src,name,art:true}));frame.contentWindow.postMessage({kind:'park-resort-art',photos,artwork},origin)}
+function sendResearchArt(){if(!ready)return;const photos=resortPhotos.map(({resort,src,original,author,source,license,licenseURL,generic})=>({resort,src,original,author,source,license,licenseURL,generic}));const artwork=resortArt.map(({resort,src,name})=>({resort,src,name,art:true}));frame.contentWindow.postMessage({kind:'park-resort-art',photos,artwork},origin)}
 function send(){if(ready){frame.contentWindow.postMessage({kind:'park-open',tab:currentRoute,tripId:currentTrip,day:currentDay},origin);sendResearchArt()}}
 function open(route, opts={}){currentRoute=route;currentTrip=opts.tripId??nextTrip()?.id??'';currentDay=opts.day??'';showTab('extras');if(!frame.hasAttribute('src')){frame.src='companion.html?embedded=1&tab='+encodeURIComponent(route);ready=false}window.scrollTo({top:0,behavior:'auto'})}
 extra.onclick=()=>open(currentRoute,{tripId:currentTrip||nextTrip()?.id});
@@ -53,12 +53,12 @@ const resortPhotos = [
  },
  {
   "resort": "Grand Floridian Resort & Spa",
-  "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Disney%27s-Grand-Floridian-Resort.jpg/960px-Disney%27s-Grand-Floridian-Resort.jpg",
-  "original": "https://upload.wikimedia.org/wikipedia/commons/6/62/Disney%27s-Grand-Floridian-Resort.jpg",
-  "source": "https://commons.wikimedia.org/wiki/File:Disney%27s-Grand-Floridian-Resort.jpg",
-  "author": "Micha L. Rieser",
-  "license": "Attribution only",
-  "licenseURL": "https://commons.wikimedia.org/wiki/File:Disney%27s-Grand-Floridian-Resort.jpg",
+  "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Disneygrandfloridian.jpg/960px-Disneygrandfloridian.jpg",
+  "original": "https://upload.wikimedia.org/wikipedia/commons/9/90/Disneygrandfloridian.jpg",
+  "source": "https://commons.wikimedia.org/wiki/File:Disneygrandfloridian.jpg",
+  "author": "Scdis32",
+  "license": "CC BY 3.0",
+  "licenseURL": "https://creativecommons.org/licenses/by/3.0/",
   "kind": "any"
  },
  {
@@ -73,12 +73,12 @@ const resortPhotos = [
  },
  {
   "resort": "Wilderness Lodge",
-  "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Disney%27s-Wilderness-Lodge-Entrance.jpg/960px-Disney%27s-Wilderness-Lodge-Entrance.jpg",
-  "original": "https://upload.wikimedia.org/wikipedia/commons/f/f4/Disney%27s-Wilderness-Lodge-Entrance.jpg",
-  "source": "https://commons.wikimedia.org/wiki/File:Disney%27s-Wilderness-Lodge-Entrance.jpg",
-  "author": "Micha L. Rieser",
-  "license": "Attribution only",
-  "licenseURL": "https://commons.wikimedia.org/wiki/File:Disney%27s-Wilderness-Lodge-Entrance.jpg",
+  "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Disney_World_-_Wilderness_Lodge_with_rocks.jpg/960px-Disney_World_-_Wilderness_Lodge_with_rocks.jpg",
+  "original": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Disney_World_-_Wilderness_Lodge_with_rocks.jpg",
+  "source": "https://commons.wikimedia.org/wiki/File:Disney_World_-_Wilderness_Lodge_with_rocks.jpg",
+  "author": "LtPowers",
+  "license": "CC BY-SA 4.0",
+  "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0/",
   "kind": "any"
  },
  {
@@ -203,12 +203,12 @@ const resortPhotos = [
  },
  {
   "resort": "Pop Century Resort",
-  "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Disney%27s-Pop-Century-Resort-Entrance.jpg/960px-Disney%27s-Pop-Century-Resort-Entrance.jpg",
-  "original": "https://upload.wikimedia.org/wikipedia/commons/8/8a/Disney%27s-Pop-Century-Resort-Entrance.jpg",
-  "source": "https://commons.wikimedia.org/wiki/File:Disney%27s-Pop-Century-Resort-Entrance.jpg",
-  "author": "Micha L. Rieser",
-  "license": "Attribution only",
-  "licenseURL": "https://commons.wikimedia.org/wiki/File:Disney%27s-Pop-Century-Resort-Entrance.jpg",
+  "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Orlando_-_Disney_World_-_Disney%27s_Pop_Century_Resort_-_Hippy_Dippy_Pool_%2816599103293%29.jpg/960px-Orlando_-_Disney_World_-_Disney%27s_Pop_Century_Resort_-_Hippy_Dippy_Pool_%2816599103293%29.jpg",
+  "original": "https://upload.wikimedia.org/wikipedia/commons/b/b5/Orlando_-_Disney_World_-_Disney%27s_Pop_Century_Resort_-_Hippy_Dippy_Pool_%2816599103293%29.jpg",
+  "source": "https://commons.wikimedia.org/wiki/File:Orlando_-_Disney_World_-_Disney%27s_Pop_Century_Resort_-_Hippy_Dippy_Pool_%2816599103293%29.jpg",
+  "author": "Jared",
+  "license": "CC BY 2.0",
+  "licenseURL": "https://creativecommons.org/licenses/by/2.0/",
   "kind": "any"
  },
  {
@@ -250,6 +250,17 @@ const resortPhotos = [
   "license": "CC BY-SA 4.0",
   "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0/",
   "kind": "any"
+ },
+ {
+  "resort": "Off-site / other",
+  "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Universal_Aventura_Hotel_06.jpg/960px-Universal_Aventura_Hotel_06.jpg",
+  "original": "https://upload.wikimedia.org/wikipedia/commons/4/4e/Universal_Aventura_Hotel_06.jpg",
+  "source": "https://commons.wikimedia.org/wiki/File:Universal_Aventura_Hotel_06.jpg",
+  "author": "Farragutful",
+  "license": "CC BY-SA 4.0",
+  "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "kind": "any",
+  "generic": true
  }
 ];
 const galleryKey='parkCountdown.v2.homeGallery';
@@ -312,6 +323,7 @@ function selectResortPhotos(v,selected,mode,period){
  const custom=[...personal,...resortArt];
  let chosen=mode==='selected'&&selected?(custom.some(p=>p.resort===selected)?custom.filter(p=>p.resort===selected):all.filter(p=>p.resort===selected)):(custom.length?custom:all);
  if(mode==='selected'&&selected){let preferred=chosen.filter(p=>p.kind===period||p.kind==='any');if(preferred.length>=2)chosen=preferred;}
+ if(!chosen.length&&mode==='selected'&&selected&&!resortPhotos.some(p=>p.resort===selected)){chosen=resortPhotos.filter(p=>p.generic&&p.resort==='Off-site / other').map(p=>({...p,resort:selected}));}
  if(!chosen.length&&!(mode==='selected'&&selected))chosen=all;
  const seen=new Set();return chosen.filter(p=>!seen.has(p.src)&&seen.add(p.src));
 }
@@ -331,7 +343,7 @@ function renderResortGallery(t,v,d,summaryDay){
  const caption=make('div','','v27-resort-caption');caption.append(make('h2',slide?.resort||(homeGallery.mode==='selected'&&selected?selected:'Resort gallery')));galleryCard.append(caption);
  if(slide?.art)caption.append(make('small',slide.name+' · Resort artwork pack','muted'));
  else if(slide?.personal)caption.append(make('small','Your personal photo','muted'));
- else if(slide){const credit=make('small','','muted');credit.append(document.createTextNode('Photo: '));const source=make('a',slide.author);source.href=slide.source;source.target='_blank';source.rel='noopener noreferrer';const lic=make('a',slide.license);lic.href=slide.licenseURL;lic.target='_blank';lic.rel='noopener noreferrer';credit.append(source,document.createTextNode(' · '),lic,document.createTextNode(' · Full photo'));caption.append(credit)}
+ else if(slide){const credit=make('small','','muted');credit.append(document.createTextNode(slide.generic?'Representative Florida hotel photo (not your actual hotel): ':'Photo: '));const source=make('a',slide.author);source.href=slide.source;source.target='_blank';source.rel='noopener noreferrer';const lic=make('a',slide.license);lic.href=slide.licenseURL;lic.target='_blank';lic.rel='noopener noreferrer';credit.append(source,document.createTextNode(' · '),lic,document.createTextNode(' · Full photo'));caption.append(credit)}
  const row=make('div','','v27-links');const rerender=()=>{lastSlideKey='';renderResortGallery(t,v,d,summaryDay)};
  const prev=button('‹',()=>{photoIndex--;rerender()});prev.setAttribute('aria-label','Previous resort photo');prev.disabled=pics.length<2;
  const next=button('›',()=>{photoIndex++;rerender()});next.setAttribute('aria-label','Next resort photo');next.disabled=pics.length<2;

@@ -1,11 +1,18 @@
-PARK DAY COUNTDOWN — RESORT PICTURE PACK SUPPORT
+PARK DAY COUNTDOWN V2 — AUTOMATIC UPDATE + PICTURES TAB
 
-Development branch only: development/v2. Replace integration.js at the repository root. This is cumulative with the previous resort carousel update; no additional Cloudflare build settings are required. Integrated Phase 1–7 must already be deployed successfully. Do not replace the production main branch.
+Upload these three files to the ROOT of the development/v2 branch, replacing existing copies:
+  integration.js
+  patch-original.cjs
+  sw-integrated.js
+Commit all three together. The included integration.js also contains the previous Pictures tab update; no separate installation needed.
 
-After deployment, open V2, select Parks & Rides, then scroll to Resort picture packs. Alternatively, select Picture packs on the Home resort carousel. Upload Resort-Picture-Pack-01.zip directly, without extracting it. Future packs can be imported in the same way. Images are stored separately from ride images in IndexedDB, not localStorage. Reimporting the same filename for the same resort replaces that image; other packs remain. Remove resort pack pictures clears only resort pack art, not personal photos or ride packs.
+Keep the existing Cloudflare Pages settings:
+  Production branch: development/v2
+  Build command: bash build-integrated.sh
+  Build output directory: dist
+  Root directory: blank
+Do not replace version.txt manually. Each changed build creates dist/version.txt automatically, sets the original HTML's BUILD constant, versions the scripts and service worker cache, and generates Cloudflare cache revalidation headers. The source version.txt on GitHub is not the deployed version file. The existing build script already invokes patch-original.cjs.
 
-Home cycles imported artwork and personal resort pictures by default once available. My resort filters to the selected hotel, using online pictures if it has no custom artwork. Pause and previous/next controls remain. Resort art is stored on the current device only; keep ZIPs for backup and reimport on other devices. No image files need to be committed to GitHub. Imported images work locally even without Internet once the app shell is available.
+After deployment, open the V2 app and refresh once if the old version doesn't show an update prompt. Future changed builds display the original 'Update ready · tap to refresh' button. It checks on launch, return to the foreground, network reconnection, and every minute while visible. The app does not force reload during uploads or planning; tap the button when ready. No updates while offline; detection resumes when online. Picture packs, IndexedDB and localStorage keys are unchanged. Do not clear website data.
 
-ZIP format: JPEG, PNG or WebP files; manifest.json array with resort_name, file, kind (any/day/night), name. Filename-only matching also works with resort-name-scene.webp. ZIPs up to 32 MB, individual entries up to 3 MB, 300 entries maximum. Stored ZIPs supported; deflate ZIPs require browser DecompressionStream deflate-raw support. A provided pack uses stored ZIP entries for compatibility.
-
-Testing: node --check integration.js and node test-resort-packs.cjs /path/to/Resort-Picture-Pack-01.zip. These verify actual ZIP parsing, mapping, invalid ZIP rejection and artwork selection. IndexedDB persistence, Safari file picker and live deployed carousel still need device tests.
+Tests (optional, not needed on GitHub): node test-update-logic.cjs; node test-resort-packs.cjs <batch1 ZIP>; python test-pictures-navigation.py. The test-auto-update.py full service worker browser fixture is also included; local server navigation was blocked by the test environment, so that test remains unverified. iOS and live Cloudflare deployment also need verification. No changes made to main or pushed to GitHub.

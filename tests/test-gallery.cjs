@@ -1,0 +1,22 @@
+// Resort gallery: catalog photos are credited Wikimedia images; selection respects mode, personal photos and uploaded art.
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const src=fs.readFileSync(__dirname+'/../integration.js','utf8');
+const grab=(startKey,endKey)=>{const i=src.indexOf(startKey);assert(i>=0,'missing '+startKey);const j=src.indexOf(endKey,i);assert(j>i,'missing end for '+startKey);return src.slice(i,j+endKey.length)};
+const photos=grab('const resortPhotos = ','\n];');
+const safe=grab('const safePersonalPhoto','\n');
+const select=src.slice(src.indexOf('function selectResortPhotos'),src.indexOf('function renderResortGallery'));
+const ctx=vm.createContext({});
+vm.runInContext(`${photos}\nlet resortArt=[];\n${safe}\n${select}`,ctx);
+const run=s=>vm.runInContext(s,ctx);
+const n=run('resortPhotos.length'),hotels=run('new Set(resortPhotos.map(p=>p.resort)).size');
+assert(n>=22&&hotels>=21,'catalog has at least 22 photos / 21 hotels');
+assert(run('resortPhotos.every(p=>p.src.startsWith("https://upload.wikimedia.org/")&&p.author&&p.source&&p.licenseURL)'),'every catalog photo is a credited Wikimedia image');
+assert.equal(run('selectResortPhotos({},"","all","day").length'),n,'all mode shows every photo');
+assert.equal(run('selectResortPhotos({},"Polynesian Village Resort","selected","day").every(p=>p.resort==="Polynesian Village Resort")'),true,'selected mode stays on the chosen resort');
+assert(run('selectResortPhotos({},"Polynesian Village Resort","selected","day").length')>=1);
+assert(run('selectResortPhotos({images:{"Polynesian Village Resort":"data:image/jpeg;base64,AAAA"}},"Polynesian Village Resort","selected","night").some(p=>p.personal)'),'personal photo included');
+assert(!run('selectResortPhotos({gallery:{"Polynesian Village Resort":[{src:"https://evil.example/"}]}},"Polynesian Village Resort","selected","night").some(p=>p.src.includes("evil"))'),'outside web addresses are never used as personal photos');
+run('resortArt=[{resort:"Polynesian Village Resort",src:"blob:art",kind:"any",art:true}]');
+assert(run('selectResortPhotos({},"Polynesian Village Resort","selected","day").every(p=>p.art)'),'uploaded resort art replaces online photos for that resort');
+assert(src.includes("!document.querySelector('[data-panel=\"home\"]').hidden"),'rotation pauses when Home is hidden');
+console.log(`PASS: ${n} credited catalog photos / ${hotels} hotels, all/selected modes, personal photos, uploaded art priority, unsafe URL rejection, offscreen rotation guard.`);

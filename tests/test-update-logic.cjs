@@ -8,8 +8,8 @@ function build(change=''){
  fs.writeFileSync(path.join(dir,'integration.js'),'// fixture'+change);
  fs.writeFileSync(path.join(dir,'companion.html'),'<script src="companion.js"></script>');
  fs.writeFileSync(path.join(dir,'companion.js'),'// companion');
- fs.copyFileSync(path.join(__dirname,'sw-integrated.js'),path.join(dir,'sw.js'));
- cp.execFileSync(process.execPath,[path.join(__dirname,'patch-original.cjs'),path.join(dir,'index.html')]);
+ fs.copyFileSync(path.join(__dirname,'..','sw-integrated.js'),path.join(dir,'sw.js'));
+ cp.execFileSync(process.execPath,[path.join(__dirname,'..','patch-original.cjs'),path.join(dir,'index.html')]);
  const v=fs.readFileSync(path.join(dir,'version.txt'),'utf8').trim();
  assert.match(v,/^v2-[a-f0-9]{20}$/);assert(fs.readFileSync(path.join(dir,'sw.js'),'utf8').includes('park-day-integrated-'+v));
  return v;

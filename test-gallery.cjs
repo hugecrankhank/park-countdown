@@ -1,0 +1,17 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const src=fs.readFileSync(__dirname+'/integration.js','utf8');
+const start=src.indexOf('const resortPhotos = '),end=src.indexOf('function renderResortGallery',start);
+const ctx=vm.createContext({get:()=>({}),localStorage:{setItem(){}}});
+vm.runInContext(src.slice(start,end),ctx);
+const run=s=>vm.runInContext(s,ctx);
+assert.equal(run('resortPhotos.length'),22);
+assert.equal(run('new Set(resortPhotos.map(p=>p.resort)).size'),21);
+assert(run('resortPhotos.every(p=>p.src.startsWith("https://upload.wikimedia.org/")&&p.author&&p.source&&p.licenseURL)'));
+assert.equal(run('selectResortPhotos({},"","all","day").length'),22);
+assert.equal(run('selectResortPhotos({},"Polynesian Village Resort","selected","day").length'),2);
+assert.equal(run('selectResortPhotos({},"Riviera Resort","selected","day").length'),1);
+assert.equal(run('selectResortPhotos({},"Off-site / other","selected","day").length'),22);
+assert.equal(run('selectResortPhotos({images:{"Polynesian Village Resort":"data:image/jpeg;base64,AAAA"}},"Polynesian Village Resort","selected","night").length'),3);
+assert.equal(run('selectResortPhotos({gallery:{"Polynesian Village Resort":[{src:"https://evil.example/"}]}},"Polynesian Village Resort","selected","night").length'),2);
+assert(src.includes("!document.querySelector('[data-panel=\"home\"]').hidden"));
+console.log('PASS: 22 catalog photos / 21 hotels, all/selected modes, personal photo inclusion, fallback, invalid URL rejection, offscreen rotation guard.');

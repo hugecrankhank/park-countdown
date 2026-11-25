@@ -1,27 +1,11 @@
-PARK DAY COUNTDOWN — HOME RESORT CAROUSEL
+PARK DAY COUNTDOWN — RESORT PICTURE PACK SUPPORT
 
-Replace integration.js at the ROOT of development/v2. Keep the current
-Cloudflare integrated build settings (bash build-integrated.sh, output dist).
-The build already copies integration.js into dist, so no build changes are needed.
-Commit to development/v2 only; let Cloudflare deploy the new commit.
-Do not merge into main. If the earlier integrated deployment has not succeeded,
-this update still needs that deployment to succeed before it can be seen.
+Development branch only: development/v2. Replace integration.js at the repository root. This is cumulative with the previous resort carousel update; no additional Cloudflare build settings are required. Integrated Phase 1–7 must already be deployed successfully. Do not replace the production main branch.
 
-Home: A photo carousel below the original countdown shows the catalog even
-without a saved trip. Photos rotate every 15 seconds while Home is visible,
-with next/previous, pause and My resort / All resorts controls. My resort uses
-the hotel selected in More > Resorts; personal images are included without
-altering prior uploads or stored trip data. Resort credits and license links
-are visible below each photograph. Photo files are externally hosted on
-Wikimedia Commons, not embedded in this package. Internet access is needed;
-unavailable images are skipped, with a readable message if none load.
+After deployment, open V2, select Parks & Rides, then scroll to Resort picture packs. Alternatively, select Picture packs on the Home resort carousel. Upload Resort-Picture-Pack-01.zip directly, without extracting it. Future packs can be imported in the same way. Images are stored separately from ride images in IndexedDB, not localStorage. Reimporting the same filename for the same resort replaces that image; other packs remain. Remove resort pack pictures clears only resort pack art, not personal photos or ride packs.
 
-All 21 named WDW hotels in the current list are covered (22 photo references).
-Off-site / other has no default photo. This package does not add default
-photos to the companion Explore cards; the requested Home gallery is the focus.
+Home cycles imported artwork and personal resort pictures by default once available. My resort filters to the selected hotel, using online pictures if it has no custom artwork. Pause and previous/next controls remain. Resort art is stored on the current device only; keep ZIPs for backup and reimport on other devices. No image files need to be committed to GitHub. Imported images work locally even without Internet once the app shell is available.
 
-Tested: JS syntax and catalog/selection logic (node test-gallery.cjs).
-Live image loading, installed PWA and Cloudflare deployment are not verified.
-See RESORT-PHOTO-CREDITS.txt for full source credits; images remain under their
-individual licenses. The file URLs reference the corresponding Commons file,
-with responsive thumbnail and original-file fallback; not official Disney art.
+ZIP format: JPEG, PNG or WebP files; manifest.json array with resort_name, file, kind (any/day/night), name. Filename-only matching also works with resort-name-scene.webp. ZIPs up to 32 MB, individual entries up to 3 MB, 300 entries maximum. Stored ZIPs supported; deflate ZIPs require browser DecompressionStream deflate-raw support. A provided pack uses stored ZIP entries for compatibility.
+
+Testing: node --check integration.js and node test-resort-packs.cjs /path/to/Resort-Picture-Pack-01.zip. These verify actual ZIP parsing, mapping, invalid ZIP rejection and artwork selection. IndexedDB persistence, Safari file picker and live deployed carousel still need device tests.

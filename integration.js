@@ -12,7 +12,8 @@ let panel=make('section','','card v27-frame-panel');panel.dataset.panel='extras'
 let galleryCard=make('section','','card v27-gallery');galleryCard.hidden=true;hero.after(galleryCard);let homeCard=make('section','','card');ticker.after(homeCard);
 let currentRoute='Explore', currentTrip='',currentDay='', photoIndex=0, ready=false;
 const button=(label,cb,primary=false)=>{let b=make('button',label,primary?'primary':'');b.type='button';b.onclick=cb;return b};
-function send(){if(ready)frame.contentWindow.postMessage({kind:'park-open',tab:currentRoute,tripId:currentTrip,day:currentDay},origin)}
+function sendResearchArt(){if(!ready)return;const photos=resortPhotos.map(({resort,src,original,author,source,license,licenseURL})=>({resort,src,original,author,source,license,licenseURL}));const artwork=resortArt.map(({resort,src,name})=>({resort,src,name,art:true}));frame.contentWindow.postMessage({kind:'park-resort-art',photos,artwork},origin)}
+function send(){if(ready){frame.contentWindow.postMessage({kind:'park-open',tab:currentRoute,tripId:currentTrip,day:currentDay},origin);sendResearchArt()}}
 function open(route, opts={}){currentRoute=route;currentTrip=opts.tripId??nextTrip()?.id??'';currentDay=opts.day??'';showTab('extras');if(!frame.hasAttribute('src')){frame.src='companion.html?embedded=1&tab='+encodeURIComponent(route);ready=false}window.scrollTo({top:0,behavior:'auto'})}
 extra.onclick=()=>open(currentRoute,{tripId:currentTrip||nextTrip()?.id});
 const originalShow=showTab;showTab=function(t){originalShow(t);if(t==='home')refreshHome();if(t==='extras'&&frame.hasAttribute('src'))send()};
@@ -260,7 +261,7 @@ let resortArt=[], artDBPromise, packBusy=false;
 const resortSlug=x=>String(x).toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 function openArtDB(){return artDBPromise ||= new Promise((resolve,reject)=>{const r=indexedDB.open(packDBName,1);r.onupgradeneeded=()=>r.result.createObjectStore(packStore,{keyPath:'key'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
 async function artTransaction(mode,fn){const db=await openArtDB();return new Promise((resolve,reject)=>{const tx=db.transaction(packStore,mode);let request=fn(tx.objectStore(packStore));tx.oncomplete=()=>resolve(request?.result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('Image storage transaction aborted'));});}
-async function loadResortArt(){const rows=await artTransaction('readonly',s=>s.getAll());for(const p of resortArt)URL.revokeObjectURL(p.src);resortArt=rows.map(p=>({...p,src:URL.createObjectURL(p.blob),art:true})).sort((a,b)=>a.resort.localeCompare(b.resort)||a.key.localeCompare(b.key));photoIndex=0;lastSlideKey='';failedPhotos.clear();updateArtStatus();refreshHome();}
+async function loadResortArt(){const rows=await artTransaction('readonly',s=>s.getAll());for(const p of resortArt)URL.revokeObjectURL(p.src);resortArt=rows.map(p=>({...p,src:URL.createObjectURL(p.blob),art:true})).sort((a,b)=>a.resort.localeCompare(b.resort)||a.key.localeCompare(b.key));photoIndex=0;lastSlideKey='';failedPhotos.clear();updateArtStatus();refreshHome();sendResearchArt();}
 const MAX_PACK=32*1024*1024, MAX_IMAGE=3*1024*1024;
 async function readResortZip(buffer){
  const bytes=new Uint8Array(buffer),d=new DataView(buffer);if(bytes.length>MAX_PACK||bytes.length<22)throw Error('ZIP must be under 32 MB.');
@@ -325,12 +326,12 @@ function renderResortGallery(t,v,d,summaryDay){
  if(signature===lastSlideKey)return;lastSlideKey=signature;galleryCard.replaceChildren();
  const top=make('div','','row');top.style.justifyContent='space-between';top.append(make('span',label,'muted'),make('span',pics.length?`${pos+1} / ${pics.length}`:'','muted'));galleryCard.append(top);
  const visual=make('div','','v27-resort-visual');galleryCard.append(visual);
- if(slide){const img=make('img');img.alt=slide.resort;img.decoding='async';img.referrerPolicy='no-referrer';let retried=false;img.onerror=()=>{if(!img.isConnected)return;if(!retried&&slide.original&&slide.original!==slide.src){retried=true;img.src=slide.original;return}failedPhotos.add(slide.src);lastSlideKey='';renderResortGallery(t,v,d,summaryDay)};img.src=slide.src;visual.append(img);}
+ if(slide){const img=make('img');img.alt=slide.resort;img.decoding='async';img.referrerPolicy='no-referrer';if(!slide.art&&!slide.personal)img.style.objectFit='contain';let retried=false;img.onerror=()=>{if(!img.isConnected)return;if(!retried&&slide.original&&slide.original!==slide.src){retried=true;img.src=slide.original;return}failedPhotos.add(slide.src);lastSlideKey='';renderResortGallery(t,v,d,summaryDay)};img.src=slide.src;visual.append(img);}
  else visual.append(make('p','Resort pictures could not load. Check your connection or upload personal photos in Resort settings.','muted'));
  const caption=make('div','','v27-resort-caption');caption.append(make('h2',slide?.resort||'Resort gallery'));galleryCard.append(caption);
  if(slide?.art)caption.append(make('small',slide.name+' · Resort artwork pack','muted'));
  else if(slide?.personal)caption.append(make('small','Your personal photo','muted'));
- else if(slide){const credit=make('small','','muted');credit.append(document.createTextNode('Photo: '));const source=make('a',slide.author);source.href=slide.source;source.target='_blank';source.rel='noopener noreferrer';const lic=make('a',slide.license);lic.href=slide.licenseURL;lic.target='_blank';lic.rel='noopener noreferrer';credit.append(source,document.createTextNode(' · '),lic,document.createTextNode(' · Display cropped to fit'));caption.append(credit)}
+ else if(slide){const credit=make('small','','muted');credit.append(document.createTextNode('Photo: '));const source=make('a',slide.author);source.href=slide.source;source.target='_blank';source.rel='noopener noreferrer';const lic=make('a',slide.license);lic.href=slide.licenseURL;lic.target='_blank';lic.rel='noopener noreferrer';credit.append(source,document.createTextNode(' · '),lic,document.createTextNode(' · Full photo'));caption.append(credit)}
  const row=make('div','','v27-links');const rerender=()=>{lastSlideKey='';renderResortGallery(t,v,d,summaryDay)};
  const prev=button('‹',()=>{photoIndex--;rerender()});prev.setAttribute('aria-label','Previous resort photo');prev.disabled=pics.length<2;
  const next=button('›',()=>{photoIndex++;rerender()});next.setAttribute('aria-label','Next resort photo');next.disabled=pics.length<2;

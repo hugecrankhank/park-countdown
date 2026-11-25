@@ -16,6 +16,7 @@ function unwrap(r){if(r.error)throw new Error(r.error.message);return r.data}
 function openPortal(v='welcome'){view=v;root.hidden=false;document.body.classList.add('pc-portal-open');render();window.scrollTo(0,0)}
 function openApp(tab='home'){requireDeviceAccess(true);root.hidden=true;root.replaceChildren();document.body.classList.remove('pc-portal-open');storage('parkCountdown.portal.entered','1');showTab(tab);window.scrollTo(0,0)}
 const accountNav=button('Welcome / Account',()=>openPortal(user?'dashboard':'welcome'));accountNav.dataset.portal='account';nav.append(accountNav);
+const reservationsNav=button('Reservations & payments',async()=>{if(!user){intent='dashboard';openPortal('auth');return}const t=typeof nextTrip==='function'?nextTrip():null;const link=t&&deviceAllowed()?localLink(t.id):null;if(link?.owner===user.id){const trip=unwrap(await api.from('account_trips').select('*').eq('id',link.cloud).maybeSingle());if(trip){openReservations(trip,false);return}}openPortal('dashboard');message('Choose Reservations & payments on the saved trip you want to manage.')});reservationsNav.dataset.portal='reservations';nav.append(reservationsNav);
 // Keep the Account button out of original tab selection logic (no data-tab).
 function card(title,desc){const n=el('section','','pc-card');n.append(el('h2',title));if(desc)n.append(el('p',desc));root.append(n);return n}
 function row(parent,...items){const r=el('div','','pc-row');r.append(...items);parent.append(r);return r}

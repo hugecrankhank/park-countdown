@@ -33,10 +33,10 @@ const importCard=make('section','','card');importCard.dataset.panel='trips';impo
 const resortPhotos = [
  {
   "resort": "Polynesian Village Resort",
-  "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Disney%27s_Polynesian_Village_Resort_%2818315110939%29.jpg/960px-Disney%27s_Polynesian_Village_Resort_%2818315110939%29.jpg",
-  "original": "https://upload.wikimedia.org/wikipedia/commons/b/b7/Disney%27s_Polynesian_Village_Resort_%2818315110939%29.jpg",
-  "source": "https://commons.wikimedia.org/wiki/File:Disney%27s_Polynesian_Village_Resort_%2818315110939%29.jpg",
-  "author": "Sam Howzit",
+  "src": "https://upload.wikimedia.org/wikipedia/commons/3/3e/Polynesian_Evening_%2827124765914%29.jpg",
+  "original": "https://upload.wikimedia.org/wikipedia/commons/3/3e/Polynesian_Evening_%2827124765914%29.jpg",
+  "source": "https://commons.wikimedia.org/wiki/File:Polynesian_Evening_(27124765914).jpg",
+  "author": "Chad Sparkes",
   "license": "CC BY 2.0",
   "licenseURL": "https://creativecommons.org/licenses/by/2.0/",
   "kind": "any"
@@ -312,7 +312,7 @@ function selectResortPhotos(v,selected,mode,period){
  const custom=[...personal,...resortArt];
  let chosen=mode==='selected'&&selected?(custom.some(p=>p.resort===selected)?custom.filter(p=>p.resort===selected):all.filter(p=>p.resort===selected)):(custom.length?custom:all);
  if(mode==='selected'&&selected){let preferred=chosen.filter(p=>p.kind===period||p.kind==='any');if(preferred.length>=2)chosen=preferred;}
- if(!chosen.length)chosen=all;
+ if(!chosen.length&&!(mode==='selected'&&selected))chosen=all;
  const seen=new Set();return chosen.filter(p=>!seen.has(p.src)&&seen.add(p.src));
 }
 function renderResortGallery(t,v,d,summaryDay){
@@ -328,7 +328,7 @@ function renderResortGallery(t,v,d,summaryDay){
  const visual=make('div','','v27-resort-visual');galleryCard.append(visual);
  if(slide){const img=make('img');img.alt=slide.resort;img.decoding='async';img.referrerPolicy='no-referrer';if(!slide.art&&!slide.personal)img.style.objectFit='contain';let retried=false;img.onerror=()=>{if(!img.isConnected)return;if(!retried&&slide.original&&slide.original!==slide.src){retried=true;img.src=slide.original;return}failedPhotos.add(slide.src);lastSlideKey='';renderResortGallery(t,v,d,summaryDay)};img.src=slide.src;visual.append(img);}
  else visual.append(make('p','Resort pictures could not load. Check your connection or upload personal photos in Resort settings.','muted'));
- const caption=make('div','','v27-resort-caption');caption.append(make('h2',slide?.resort||'Resort gallery'));galleryCard.append(caption);
+ const caption=make('div','','v27-resort-caption');caption.append(make('h2',slide?.resort||(homeGallery.mode==='selected'&&selected?selected:'Resort gallery')));galleryCard.append(caption);
  if(slide?.art)caption.append(make('small',slide.name+' · Resort artwork pack','muted'));
  else if(slide?.personal)caption.append(make('small','Your personal photo','muted'));
  else if(slide){const credit=make('small','','muted');credit.append(document.createTextNode('Photo: '));const source=make('a',slide.author);source.href=slide.source;source.target='_blank';source.rel='noopener noreferrer';const lic=make('a',slide.license);lic.href=slide.licenseURL;lic.target='_blank';lic.rel='noopener noreferrer';credit.append(source,document.createTextNode(' · '),lic,document.createTextNode(' · Full photo'));caption.append(credit)}
@@ -338,7 +338,7 @@ function renderResortGallery(t,v,d,summaryDay){
  const pause=button(homeGallery.paused||v.galleryPrefs?.rotation===false?'Play':'Pause',()=>{homeGallery.paused=!homeGallery.paused;if(v.galleryPrefs?.rotation===false){homeGallery.paused=false;alert('Automatic rotation is disabled in Resort gallery settings. Enable it there to resume.');}storeHomeGallery();rerender()});
  const modeBtn=button(homeGallery.mode==='selected'?'All resorts':'My resort',()=>{if(!selected&&homeGallery.mode==='all'){open('Explore',{tripId:t?.id});return}homeGallery.mode=homeGallery.mode==='selected'?'all':'selected';photoIndex=0;storeHomeGallery();rerender()});
  row.append(prev,next,pause,modeBtn,button('Resort details',()=>open('Explore',{tripId:t?.id})),button('Picture packs',openResortPacks));galleryCard.append(row);
- if(homeGallery.mode==='selected'&&selected&&slide?.resort!==selected)galleryCard.append(make('small','No photos for your selected hotel yet. Showing the wider collection.','muted'));
+ if(homeGallery.mode==='selected'&&selected&&slide?.resort!==selected)galleryCard.append(make('small','No photos for your selected hotel are available. Select All resorts to explore other hotels.','muted'));
 }
 function refreshHome(){
  const t=nextTrip(), v=get(V2,{}), d=t?v.data?.[t.id]:null;let summaryDay=typeof homeDay!=='undefined'&&homeDay;

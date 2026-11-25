@@ -2,3 +2,5 @@
 
 #pcPortal .pc-res-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px}#pcPortal .pc-res-summary>div{padding:12px;background:#171b35;border:1px solid #48476c;border-radius:12px}#pcPortal .pc-res-summary strong{display:block;color:#f9d791;font-size:1.12rem}#pcPortal .pc-res-summary span{display:block;color:#d7d1e9;font-size:.78rem;margin-top:4px}#pcPortal .pc-res-item{padding:14px 0;border-bottom:1px solid #48476c}#pcPortal .pc-res-item:last-child{border-bottom:0}#pcPortal .pc-res-item h3{margin:0;color:#f9d791;font-size:1rem}#pcPortal .pc-res-notes{white-space:pre-wrap}
 #pcPortal .pc-notice-check{display:flex;align-items:center;gap:10px;margin:12px 0}#pcPortal .pc-notice-check input{width:20px;height:20px;accent-color:#f4cf83;flex:none}#pcPortal .pc-notice-item{overflow-wrap:anywhere}#pcPortal .pc-announcement-form{margin-top:12px}
+
+#pcPortal{padding-top:calc(22px + env(safe-area-inset-top,0px))}#pcPortal .pc-top{flex-wrap:wrap}#pcPortal .pc-top>div:last-child{display:flex;flex-wrap:wrap;gap:4px}

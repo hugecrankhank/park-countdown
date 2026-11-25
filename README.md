@@ -19,3 +19,7 @@ Live at https://hugecrankhank.github.io/park-countdown/
 ## Calendar reminders (Cloudflare Pages)
 
 iPhone only offers "Add to Calendar" for calendar files that come from a real web address. `functions/ics.js` makes those files when the site runs on Cloudflare Pages (it's ignored on GitHub Pages). Connect this repo in Cloudflare → Workers & Pages → Create → Pages → Connect to Git, with no build command and no output folder. The site expects it at `https://park-countdown.pages.dev`; if Cloudflare gives a different address, update `CAL_HOST` in `index.html`.
+
+## Walking sync (Apple Health → the app)
+
+`functions/api/walk.js` stores hourly walking distance per private sync code, so a Shortcut can send it in the background and the home-screen app can pick it up. In Cloudflare: Storage & Databases → KV → create a namespace (e.g. `park-walk`), then in the park-countdown Pages project → Settings → Bindings → Add → KV namespace, variable name `WALK`. Redeploy after adding the binding.

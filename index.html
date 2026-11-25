@@ -350,18 +350,23 @@
     <details id="healthHelp">
       <summary style="cursor:pointer"><b>Import from Apple Health</b> <span class="muted" style="font-size:.85rem">(set up once)</span></summary>
       <div class="muted" style="font-size:.9rem;line-height:1.5;margin-top:10px">
-        Your iPhone counts walking distance all day. A Shortcut can send it here by the hour:
+        Your iPhone counts walking distance all day. A Shortcut sends it to your private sync code, and this app picks it up whenever you open it. Nothing opens in Safari.
+        <div style="margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#00000030">
+          Your sync code: <b id="syncCode" style="color:var(--ink);letter-spacing:.05em"></b><br>
+          <span style="font-size:.8rem">Shortcut URL:</span><br><code id="healthUrl" style="word-break:break-all;color:var(--ink)"></code>
+          <div class="row" style="margin-top:8px"><button id="copyHealthUrl" class="primary">Copy Shortcut URL</button><button id="syncNow">Sync now</button></div>
+        </div>
+        In your <b>Park Walking Log</b> Shortcut:
         <ol style="padding-left:20px;margin:8px 0">
-          <li>Open <b>Shortcuts</b> → <b>+</b> → name it <b>Log park walking</b>.</li>
-          <li>Add <b>Find Health Samples</b>: type <b>Walking + Running Distance</b>, <b>Start Date</b> is <b>Today</b>, <b>Group By: Hour</b>.</li>
-          <li>Add <b>Repeat with Each</b> (over the Health Samples). Inside it add <b>Text</b>:<br>
-            <code>[Start Date]=[Value]</code> — tap Start Date, choose <b>Custom</b> format <code>yyyy-MM-dd'T'HH</code>.</li>
-          <li>After the repeat, add <b>Combine Text</b> with a <b>Custom</b> separator <code>|</code>.</li>
-          <li>Add <b>URL</b>: <code id="healthUrl"></code><b>[Combined Text]</b></li>
-          <li>Add <b>Open URLs</b>.</li>
+          <li>Keep <b>Find Health Samples</b>, the <b>Repeat</b> with <b>Text</b> <code>[Start Date]=[Value]</code>, and <b>Combine Text</b> with <code>|</code>.</li>
+          <li>In the <b>URL</b> action, replace the address with the copied Shortcut URL, then add <b>Combined Text</b> right after <code>data=</code>.</li>
+          <li>Delete <b>Open URLs</b> and add <b>Get Contents of URL</b> instead (it sends quietly).</li>
+          <li>Optional: add <b>Show Notification</b> with <b>Contents of URL</b> to see "Saved 24 hours".</li>
         </ol>
-        Run it any evening (or add a <b>Time of Day</b> automation at 11 PM). Running it again just updates the numbers.
-        <div class="row" style="margin-top:8px"><button id="copyHealthUrl">Copy URL start</button></div>
+        For every day: <b>Automation</b> → <b>+</b> → <b>Time of Day</b> 11:00 PM, Daily, <b>Run Immediately</b> → Park Walking Log.
+        <details style="margin-top:8px"><summary style="cursor:pointer">Use a sync code from another device</summary>
+          <div class="row" style="margin-top:8px;flex-wrap:nowrap"><input id="syncCodeIn" placeholder="Paste a sync code" autocapitalize="off" autocorrect="off"><button id="syncCodeSet">Use</button></div>
+        </details>
       </div>
     </details>
     <div id="healthStatus" class="muted" style="margin-top:8px;font-size:.85rem"></div>
@@ -1419,7 +1424,7 @@ function setTiles(){
   $("#mapStyleBtn").textContent = mapNight ? "Day map" : "Night map";
 }
 async function openMapTab(){
-  renderWalkStats(); renderTrackStatus(); renderHealthHelp();
+  renderWalkStats(); renderTrackStatus(); renderHealthHelp(); pullWalk();
   const { parks } = mapParksList();
   if (!parks.length){ $("#mapParks").innerHTML = `<p class="muted">${destinations.length ? "Pick a resort on Parks & Rides first." : "Loading parks…"}</p>`; return; }
   if (!mapPark || !parks.find(p => p.id === mapPark)) mapPark = defaultMapPark(parks);
@@ -1577,13 +1582,46 @@ function renderWalkStats(){
 
 // Apple Health import: ?walk=2027-01-28T10=0.85|2027-01-28T11=1.2&unit=mi
 let healthMsg = "";
-function healthBase(){ return "https://park-countdown.pages.dev/?unit=mi&walk="; }
+const SYNC_HOST = "https://park-countdown.pages.dev";
+function syncCode(){
+  if (!state.syncCode){
+    const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", r = new Uint8Array(12); crypto.getRandomValues(r);
+    state.syncCode = [...r].map(x => abc[x % abc.length]).join(""); save();
+  }
+  return state.syncCode;
+}
+function healthBase(){ return `${SYNC_HOST}/api/walk?code=${syncCode()}&unit=mi&data=`; }
+let lastSync = 0, syncNote = "";
+async function pullWalk(force){
+  if (!force && Date.now() - lastSync < 60e3) return;
+  lastSync = Date.now();
+  try {
+    const r = await fetch(`${SYNC_HOST}/api/walk?code=${syncCode()}`, { cache: "no-store" });
+    if (r.status === 503){ syncNote = "Sync isn't switched on in Cloudflare yet."; renderHealthHelp(); return; }
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json(), hours = j.hours || {}, n = Object.keys(hours).length;
+    let changed = false;
+    for (const [k, v] of Object.entries(hours)) if (walk.health[k] !== v){ walk.health[k] = v; changed = true; }
+    if (changed){ saveWalk(); renderWalkStats(); renderTrackStatus(); if (homeDay) renderHome(); }
+    syncNote = n ? `Synced ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "Waiting for your Shortcut's first run.";
+  } catch(e){ syncNote = "Couldn't reach the sync service right now."; }
+  renderHealthHelp();
+}
 function renderHealthHelp(){
   const u = $("#healthUrl"); if (u) u.textContent = healthBase();
+  const c = $("#syncCode"); if (c) c.textContent = syncCode();
   const days = [...new Set(Object.keys(walk.health).map(k => k.slice(0, 10)))].sort();
-  $("#healthStatus").innerHTML = (healthMsg ? `<b style="color:var(--mint)">${healthMsg}</b><br>` : "") + (days.length ? `Apple Health data for ${days.length} day${days.length === 1 ? "" : "s"}, latest ${fmtDay(days[days.length - 1],{month:"short",day:"numeric"})}.` : "No Apple Health data imported yet.");
+  $("#healthStatus").innerHTML = (healthMsg ? `<b style="color:var(--mint)">${healthMsg}</b><br>` : "") + (days.length ? `Apple Health data for ${days.length} day${days.length === 1 ? "" : "s"}, latest ${fmtDay(days[days.length - 1],{month:"short",day:"numeric"})}.` : "No Apple Health data imported yet.") + (syncNote ? " " + syncNote : "");
 }
-$("#copyHealthUrl").onclick = async () => { try { await navigator.clipboard.writeText(healthBase()); $("#copyHealthUrl").textContent = "Copied"; } catch(e){ $("#copyHealthUrl").textContent = "Copy failed"; } };
+$("#copyHealthUrl").onclick = async () => { try { await navigator.clipboard.writeText(healthBase()); $("#copyHealthUrl").textContent = "Copied ✓"; } catch(e){ $("#copyHealthUrl").textContent = "Copy failed: press and hold the URL"; } };
+$("#syncNow").onclick = () => { $("#syncNow").textContent = "Syncing…"; pullWalk(true).then(() => $("#syncNow").textContent = "Sync now"); };
+$("#syncCodeSet").onclick = () => {
+  const v = ($("#syncCodeIn").value || "").trim().toUpperCase();
+  if (!/^[A-Z0-9]{8,40}$/.test(v)){ $("#syncCodeIn").value = ""; $("#syncCodeIn").placeholder = "That code doesn't look right"; return; }
+  state.syncCode = v; save(); renderHealthHelp(); pullWalk(true);
+};
+document.addEventListener("visibilitychange", () => { if (!document.hidden) pullWalk(); });
+setTimeout(() => pullWalk(true), 1500);
 (function importFromUrl(){
   let q; try { q = new URLSearchParams(location.search); } catch(e){ return; }
   const raw = q.get("walk"); if (!raw) return;
@@ -1616,7 +1654,7 @@ $("#copyHealthUrl").onclick = async () => { try { await navigator.clipboard.writ
 })();
 
 /* ---------- updates: never get stuck on an old saved copy ---------- */
-const BUILD = "202611250233";
+const BUILD = "202611250243";
 async function checkForUpdate(){
   try {
     const r = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });

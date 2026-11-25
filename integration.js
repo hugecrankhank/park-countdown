@@ -312,6 +312,73 @@ function openPictures(){showTab('pictures');window.scrollTo({top:0,behavior:'aut
 picturesTab.onclick=openPictures;
 function openResortPacks(){openPictures();}
 
+// ---- One upload for everything: images or ZIPs; each picture is routed to resorts or attractions by its name or manifest ----
+const EXTRA_RESORTS=["Disney's Polynesian Village Resort","Polynesian Village Resort","Grand Floridian Resort & Spa","Disney's Grand Floridian Resort & Spa","Contemporary Resort","Wilderness Lodge","Disney's Wilderness Lodge","Beach Club Resort","Yacht Club Resort","BoardWalk Inn","Riviera Resort","Animal Kingdom Lodge","Coronado Springs Resort","Caribbean Beach Resort","Port Orleans Riverside","Port Orleans French Quarter","Pop Century Resort","Art of Animation Resort","All-Star Movies Resort","All-Star Music Resort","All-Star Sports Resort","Old Key West Resort","Saratoga Springs Resort","Fort Wilderness Resort","Swan Reserve","Walt Disney World Swan","Walt Disney World Dolphin","Disneyland Hotel","Grand Californian Hotel","Pixar Place Hotel","Shades of Green","Four Seasons Orlando"];
+const allResortNames=()=>[...new Set([...resortPhotos.map(x=>x.resort),...EXTRA_RESORTS])].filter(n=>n&&n!=='Off-site / other');
+// "polynesian-village-resort-night.webp" -> Polynesian Village Resort (prefix match on the longest name; "disney's" optional)
+function resortForFile(name){const stem=resortSlug(name.replace(/\.[^.]+$/,'')).replace(/^disney-s-|^disneys-/,'');let best='';for(const n of allResortNames()){const slug=resortSlug(n).replace(/^disney-s-|^disneys-/,'');if((stem===slug||stem.startsWith(slug+'-'))&&slug.length>resortSlug(best).length)best=n}
+ if(!best)return '';const catalog=resortPhotos.find(p=>resortSlug(p.resort).replace(/^disney-s-|^disneys-/,'')===resortSlug(best).replace(/^disney-s-|^disneys-/,''));return catalog?catalog.resort:best}
+const sceneKind=n=>/night|evening|lantern|firework|dusk/i.test(n)?'night':/\bday|morning|sunny|daytime/i.test(n)?'day':'any';
+async function shrinkImage(blob,max=1600){
+ let bmp;try{bmp=await createImageBitmap(blob)}catch(e){const url=URL.createObjectURL(blob);try{bmp=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(Error('unreadable image'));i.src=url})}finally{setTimeout(()=>URL.revokeObjectURL(url),1000)}}
+ const w=bmp.width||bmp.naturalWidth,h=bmp.height||bmp.naturalHeight,k=Math.min(1,max/Math.max(w,h));
+ if(k===1&&blob.size<=1.5*1024*1024&&/image\/(jpeg|webp|png)/.test(blob.type))return blob;
+ const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+ return await new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(Error('could not compress image')),'image/jpeg',0.85));
+}
+async function keepPicturesSafe(){try{if(navigator.storage?.persist&&!(await navigator.storage.persisted()))await navigator.storage.persist()}catch(e){}}
+async function savedAttractionCount(){try{const db=await new Promise((res,rej)=>{const r=indexedDB.open('parkCountdown',1);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});return await new Promise(res=>{let n=0;const c=db.transaction('photos').objectStore('photos').openKeyCursor();c.onsuccess=()=>{const k=c.result;if(k){if(String(k.key).startsWith('pack:'))n++;k.continue()}else res(n)};c.onerror=()=>res(-1)})}catch(e){return -1}}
+async function importPictures(files){
+ const status=pictureStatus;status.textContent='Reading pictures…';
+ let entries=[];
+ for(const f of files){
+  if(/\.zip$/i.test(f.name)||/zip/.test(f.type)){try{entries=entries.concat(await readZip(f))}catch(e){status.textContent=`Couldn't open ${f.name}: ${e.message}`;return}}
+  else entries.push({name:f.name,blob:f});
+ }
+ const rideRows=[],resortRows=new Map();
+ for(const m of entries.filter(e=>e.name.toLowerCase()==='manifest.json')){try{const rows=JSON.parse(await m.blob.text());for(const r of Array.isArray(rows)?rows:[]){const file=String(r?.file||'').split('/').pop();if(!file)continue;if(r.resort_name)resortRows.set(file.toLowerCase(),r);else if(r.ride_name)rideRows.push({file,ride_name:r.ride_name})}}catch(e){}}
+ const images=entries.filter(e=>e.name.toLowerCase()!=='manifest.json'&&/\.(jpe?g|png|webp|gif|avif|heic)$/i.test(e.name));
+ const rideFiles=new Set(rideRows.map(r=>r.file.toLowerCase()));
+ const toResort=[],toRide=[];
+ for(const e of images){const lower=e.name.toLowerCase();const row=resortRows.get(lower);
+  if(!rideFiles.has(lower)&&(row||resortForFile(e.name)))toResort.push({e,resort:row?.resort_name||resortForFile(e.name),kind:['any','day','night'].includes(row?.kind)?row.kind:sceneKind(e.name),name:String(row?.name||e.name).slice(0,150)});
+  else toRide.push(e);}
+ await keepPicturesSafe();
+ let resortsSaved=0,failed=0;
+ for(let i=0;i<toResort.length;i++){const r=toResort[i];status.textContent=`Saving resort pictures… ${i+1} of ${toResort.length}`;
+  try{const blob=await shrinkImage(r.e.blob);await artTransaction('readwrite',s=>s.put({key:r.resort+'|'+r.e.name.toLowerCase(),resort:r.resort,kind:r.kind,name:r.name,blob}));resortsSaved++}catch(err){failed++}}
+ if(resortsSaved)await loadResortArt();
+ let ridesAdded=0;
+ if(toRide.length){const before=packArt.size;const list=toRide.map(e=>new File([e.blob],e.name,{type:e.blob.type||'image/jpeg'}));
+  if(rideRows.length)list.push(new File([JSON.stringify(rideRows)],'manifest.json',{type:'application/json'}));
+  status.textContent=`Saving attraction pictures… (${toRide.length})`;
+  try{await addPack(list)}catch(err){failed+=toRide.length}
+  ridesAdded=Math.max(0,packArt.size-before)||toRide.length;}
+ const saved=await savedAttractionCount();
+ const parts=[];if(ridesAdded)parts.push(`${ridesAdded} attraction`);if(resortsSaved)parts.push(`${resortsSaved} resort`);
+ let msg=parts.length?`Added ${parts.join(' and ')} picture${ridesAdded+resortsSaved===1?'':'s'}.`:'No pictures were added.';
+ if(failed)msg+=` ${failed} couldn't be read and were skipped.`;
+ if(saved>=0&&saved<packArt.size)msg+=` Warning: this browser only kept ${saved} of ${packArt.size} attraction pictures. Storage may be full.`;
+ status.textContent=msg;updatePictureCounts();
+}
+const pictureInput=make('input');pictureInput.type='file';pictureInput.multiple=true;pictureInput.hidden=true;pictureInput.accept='image/*,.zip,application/zip';
+const pictureStatus=make('p','','muted');pictureStatus.setAttribute('role','status');pictureStatus.setAttribute('aria-live','polite');
+const pictureCounts=make('p','','muted');
+function updatePictureCounts(){pictureCounts.textContent=`Saved on this device: ${packArt.size} attraction picture${packArt.size===1?'':'s'} · ${resortArt.length} resort picture${resortArt.length===1?'':'s'}.`}
+let pictureBusy=false;
+const pictureUpload=button('Upload pictures',()=>pictureInput.click(),true);
+pictureInput.onchange=async()=>{const files=[...(pictureInput.files||[])];pictureInput.value='';if(!files.length||pictureBusy)return;pictureBusy=true;pictureUpload.disabled=true;try{await importPictures(files)}catch(e){pictureStatus.textContent='Import failed: '+(e?.message||e)}finally{pictureBusy=false;pictureUpload.disabled=false}};
+picturesIntro.replaceChildren(make('h2','Picture library'),
+ make('p','Pick images or ZIP packs, for resorts and attractions together. Pictures named after a hotel (like polynesian-village-resort-night.webp) or listed with resort_name in manifest.json go to the resort gallery; everything else is matched to rides by file name, as before. Large images are shrunk to fit.','muted'));
+const pictureRow=make('div','','row');pictureRow.append(pictureUpload);picturesIntro.append(pictureRow,pictureStatus,pictureCounts,pictureInput);
+// the old per-type upload buttons are replaced by the one above; their remove buttons and counts stay
+{const old=ridePackCard?.querySelector('#packBtn');if(old)old.hidden=true;artUpload.hidden=true;
+ const tidy=(card,title,text)=>{if(!card)return;const h=card.querySelector('h2');if(h)h.textContent=title;const d=[...card.querySelectorAll('p')].find(x=>!x.getAttribute('role')&&!x.id&&x.classList.contains('muted'));if(d)d.textContent=text;const help=card.querySelector('details');if(help&&!card.querySelector('#healthHelp'))help.hidden=true;};
+ tidy(ridePackCard,'Attraction pictures','Saved ride pictures. Your own single-ride photos (set on Parks & Rides) still win over these.');
+ tidy(artCard,'Resort pictures','Saved resort artwork. It replaces the online resort photos in the Home gallery.');}
+picturesTab.addEventListener('click',updatePictureCounts);
+setTimeout(updatePictureCounts,1500);
+
 
 const safePersonalPhoto=x=>typeof x==='string'&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(x);
 function selectResortPhotos(v,selected,mode,period){

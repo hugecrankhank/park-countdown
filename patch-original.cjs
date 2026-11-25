@@ -50,7 +50,8 @@ window.addEventListener("online", () => checkForUpdate());
 setInterval(() => { if (!document.hidden) checkForUpdate(); }, 60000);`;
 html=html.replace(oldUpdates,()=>updateCode);
 if(!html.includes('rel="manifest"')) html=html.replace('</head>','<link rel="manifest" href="manifest.webmanifest">\n</head>');
-html=html.replace('</body>',`<script src="integration.js?v=${build}"></script>\n</body>`);
+html=html.replace('</head>',`<link rel="stylesheet" href="account.css?v=${build}">\n</head>`);
+html=html.replace('</body>',`<script src="integration.js?v=${build}"></script>\n<script src="account-config.js?v=${build}"></script>\n<script src="qr-local.js?v=${build}"></script>\n<script src="account.js?v=${build}"></script>\n</body>`);
 const swFile=path.join(dir,'sw.js');
 const sw=fs.readFileSync(swFile,'utf8');
 if(!sw.includes('__BUILD_VERSION__')) throw Error('Service worker version marker missing');
@@ -62,5 +63,5 @@ fs.writeFileSync(companionFile,companion.replace('src="companion.js"',`src="comp
 fs.writeFileSync(swFile,sw.replaceAll('__BUILD_VERSION__',build));
 fs.writeFileSync(path.join(dir,'version.txt'),build+'\n');
 // Cloudflare Pages: ensure app shell and release check are revalidated, not pinned by HTTP cache.
-fs.writeFileSync(path.join(dir,'_headers'),['/','/index.html','/version.txt','/sw.js','/integration.js','/companion.html','/companion.js','/manifest.webmanifest'].map(p=>p+'\n  Cache-Control: no-cache, must-revalidate\n').join(''));
+fs.writeFileSync(path.join(dir,'_headers'),['/','/index.html','/version.txt','/sw.js','/integration.js','/companion.html','/companion.js','/manifest.webmanifest','/account.css','/account.js','/account-config.js','/qr-local.js'].map(p=>p+'\n  Cache-Control: no-cache, must-revalidate\n').join(''));
 console.log('Generated update version: '+build);

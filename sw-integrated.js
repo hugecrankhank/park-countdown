@@ -1,5 +1,5 @@
 const CACHE='park-day-integrated-__BUILD_VERSION__';
-const FILES=['./','./index.html','./integration.js','./companion.html','./companion.js','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
+const FILES=['./','./index.html','./integration.js','./companion.html','./companion.js','./manifest.webmanifest','./icon-192.png','./icon-512.png','./account.css','./account-config.js','./account.js','./qr-local.js'];
 self.addEventListener('install',e=>e.waitUntil((async()=>{
  const c=await caches.open(CACHE);
  await c.addAll(FILES.map(f=>new Request(new URL(f,self.registration.scope),{cache:'reload'})));

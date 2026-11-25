@@ -4,3 +4,6 @@
 #pcPortal .pc-notice-check{display:flex;align-items:center;gap:10px;margin:12px 0}#pcPortal .pc-notice-check input{width:20px;height:20px;accent-color:#f4cf83;flex:none}#pcPortal .pc-notice-item{overflow-wrap:anywhere}#pcPortal .pc-announcement-form{margin-top:12px}
 
 #pcPortal{padding-top:calc(22px + env(safe-area-inset-top,0px))}#pcPortal .pc-top{flex-wrap:wrap}#pcPortal .pc-top>div:last-child{display:flex;flex-wrap:wrap;gap:4px}
+
+/* Mobile account access: stable, visible sign-in controls. */
+#pcPortal{padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))} @media(display-mode:standalone){#pcPortal{padding-top:calc(16px + max(env(safe-area-inset-top,0px),50px))}} #pcPortal .pc-access{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 16px}#pcPortal .pc-access button{width:100%;margin:0}#pcPortal .pc-auth-card{margin-top:0}#pcPortal .pc-auth-form input{font-size:16px;min-height:48px}#pcPortal .pc-auth-submit{width:100%;margin:12px 0 6px;min-height:48px}#pcPortal .pc-auth-submit:disabled{opacity:.55;cursor:wait}#pcPortal .pc-auth-actions{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}#pcPortal .pc-password-toggle{font-size:.85rem;min-height:44px}#pcPortal .pc-notice:empty{display:none}#pcPortal .pc-auth-status{margin-bottom:8px}#pcPortal[data-view="auth"] .pc-top{margin-bottom:12px}

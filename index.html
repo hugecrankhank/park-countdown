@@ -199,6 +199,11 @@
   .big-stat div{background:#00000030;border:1px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center}
   .big-stat b{display:block;font-family:Fraunces,serif;font-size:1.4rem;color:var(--mint)}
   .big-stat span{font-size:.72rem;color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
+
+  #map.night .leaflet-tile-pane{filter:invert(1) hue-rotate(200deg) brightness(.85) contrast(.9) saturate(.8)}
+  #mapParks{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+  #mapParks::-webkit-scrollbar{display:none}
+  #mapParks .chip{white-space:nowrap;flex:none;margin:0}
 </style>
 </head>
 <body>
@@ -1407,9 +1412,10 @@ function defaultMapPark(parks){
 function setTiles(){
   if (!map) return;
   if (mapLayer) map.removeLayer(mapLayer);
-  const url = mapNight ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-  mapLayer = L.tileLayer(url, { maxZoom: 20, maxNativeZoom: 19, subdomains: "abcd",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' }).addTo(map);
+  // OpenStreetMap's own tiles (no key needed); night mode darkens them with a filter
+  mapLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 20, maxNativeZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
+  $("#map").classList.toggle("night", mapNight);
   $("#mapStyleBtn").textContent = mapNight ? "Day map" : "Night map";
 }
 async function openMapTab(){
@@ -1600,7 +1606,7 @@ $("#copyHealthUrl").onclick = async () => { try { await navigator.clipboard.writ
 })();
 
 /* ---------- updates: never get stuck on an old saved copy ---------- */
-const BUILD = "202611250150";
+const BUILD = "202611250201";
 async function checkForUpdate(){
   try {
     const r = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });

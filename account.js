@@ -38,7 +38,7 @@ function updateAuthControls(){
  const p=root.querySelector('.pc-auth-status'),retry=root.querySelector('.pc-auth-retry'),submit=root.querySelector('.pc-auth-submit'),resume=root.querySelector('.pc-auth-resume');
  if(!p)return;
  p.textContent=authState==='loading'?'Connecting to account services…':authState==='error'?'Unable to connect. '+authFailure:user?'An account is already signed in. Continue to your account, or use the form below.':'';
- p.hidden=!p.textContent;if(retry)retry.hidden=authState!=='error';if(submit)submit.disabled=authState!=='ready';if(resume)resume.hidden=!(authState==='ready'&&user);
+ p.hidden=!p.textContent;if(retry)retry.hidden=authState!=='error';if(submit)submit.disabled=!(authState==='ready'||authState==='error'&&api);if(resume)resume.hidden=!(authState==='ready'&&user);
 }
 function authScreen(){
  const mode=authMode, title=mode==='signup'?'Create account':mode==='reset'?'Reset your password':'Sign in';
@@ -79,7 +79,12 @@ async function refreshPlannerAccess(){
  catch(e){if(seq!==plannerAccessSequence||user?.id!==owner)return;plannerAccessState='error';approved=false}
  if(!root.hidden&&view==='planner')render();
 }
-async function getUser(){if(!api)return;const s=await api.auth.getSession();if(s.error)throw Error(s.error.message);if(!s.data?.session){user=null;approved=false;plannerAccessSequence++;plannerAccessState='idle';updateAccountNavigation();return}const r=await api.auth.getUser();if(r.error){user=null;approved=false;plannerAccessSequence++;plannerAccessState='idle';updateAccountNavigation();throw Error(r.error.message)}user=r.data.user;updateAccountNavigation();refreshPlannerAccess()}
+// A saved sign-in that Supabase no longer accepts (expired, revoked, user removed) is not a connection
+// problem: forget it on this device and show the normal signed-out screens.
+function staleSession(err){if(!err)return false;const m=String(err.message||err);return err.name==='AuthSessionMissingError'||err.name==='AuthApiError'&&[400,401,403,404].includes(err.status)||/session (missing|not found|expired)|refresh token|invalid jwt|jwt expired|user (not found|from sub claim)/i.test(m)}
+function signedOutLocally(){user=null;approved=false;plannerAccessSequence++;plannerAccessState='idle';updateAccountNavigation()}
+async function dropStaleSession(){try{await api.auth.signOut({scope:'local'})}catch{}signedOutLocally()}
+async function getUser(){if(!api)return;const s=await api.auth.getSession();if(s.error){if(staleSession(s.error)){await dropStaleSession();return}throw Error(s.error.message)}if(!s.data?.session){signedOutLocally();return}const r=await api.auth.getUser();if(r.error){if(staleSession(r.error)){await dropStaleSession();return}signedOutLocally();throw Error(r.error.message)}user=r.data.user;updateAccountNavigation();refreshPlannerAccess()}
 const textKeys=['title','resort','destination','notes'];
 function splitHotelNotes(value){const raw=String(value||'');const m=raw.match(/^Hotel address: ([^\r\n]+)(?:\r?\n\r?\n|\r?\n|$)/);return m?{address:m[1],notes:raw.slice(m[0].length)}:{address:'',notes:raw}}
 function combineHotelNotes(address,notes){const addr=String(address||'').trim().replace(/\s+/g,' '),body=String(notes||'').trim();return addr?'Hotel address: '+addr+(body?'\n\n'+body:''):body}

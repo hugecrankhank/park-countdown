@@ -112,3 +112,19 @@ select 'X now planner' t, exists(select 1 from public.planner_access where user_
 set role authenticated;
 select public.decide_planner_request(id, false) from public.planner_requests_for_admin(true) limit 1;  -- already handled: expect error
 reset role;
+
+-- restaurant ratings: signed-in users rate, everyone sees averages, nobody reads the table
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select public.rate_restaurant('wdw','rest1',5);
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select public.rate_restaurant('wdw','rest1',2);
+select public.rate_restaurant('wdw','rest1',9);  -- expect error
+select 'B sees avg, votes, mine' t, average, votes, mine from public.restaurant_ratings_for('wdw');
+select count(*) from public.restaurant_ratings;  -- expect permission denied
+select 'export has ratings' t, jsonb_array_length(public.export_my_account()->'restaurant_ratings');
+select public.rate_restaurant('wdw','rest1',0);
+reset role; set role anon;
+select 'anon sees avg after B removed' t, average, votes, mine is null from public.restaurant_ratings_for('wdw');
+select public.rate_restaurant('wdw','rest1',1);  -- expect error
+reset role;

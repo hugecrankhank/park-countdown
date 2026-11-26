@@ -513,3 +513,88 @@ const prevDraw=drawPath;drawPath=function(){prevDraw();if(!map||!pathLayer||type
  if(pts.length>1&&fitDay!==day){fitDay=day;try{map.fitBounds(L.latLngBounds(pts),{padding:[30,30],maxZoom:18})}catch{}}};
 const prevStats=renderWalkStats;renderWalkStats=function(){prevStats();const sel=document.querySelector('#walkDaySel');if(sel){sel.onchange=e=>{walkDay=e.target.value;renderWalkStats();drawPath();document.querySelector('#map')?.scrollIntoView({behavior:'smooth',block:'center'})}}};
 })();
+
+/* ---------- Trip planner guide (Home) + News & videos ---------- */
+(()=>{'use strict';
+const nav=document.querySelector('.tabs'),wrap=document.querySelector('.wrap'),cal=document.querySelector('#calCard');if(!nav||!wrap)return;
+const h=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n};
+const css=h('style');css.textContent=`.pg-head{display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer}.pg-head h2{margin:0;font-size:1.05rem}.pg-bar{height:6px;border-radius:3px;background:#ffffff18;margin:10px 0 4px;overflow:hidden}.pg-bar i{display:block;height:100%;background:var(--gold);border-radius:3px}
+.pg-next{border:1px solid var(--gold);border-radius:14px;padding:12px;margin-top:10px}.pg-next b{display:block;margin-bottom:2px}.pg-next button{margin-top:8px}
+.pg-step{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}.pg-step .pg-dot{flex:0 0 26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:.8rem;background:none;padding:0;min-height:0;color:inherit}.pg-step.done .pg-dot{background:#5ee0a0;border-color:#5ee0a0;color:#141637}.pg-step.done .pg-t{opacity:.65}
+.pg-step .pg-body{flex:1;min-width:0}.pg-t{font-weight:600}.pg-s{font-size:.84rem;color:var(--mute);margin:2px 0 0}.pg-step .pg-go{flex:0 0 auto;padding:6px 12px;font-size:.85rem}
+.nv-bar{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.nv-bar button{padding:6px 12px;font-size:.88rem}.nv-bar button.on{border-color:var(--gold);color:var(--gold)}
+.nv-item{display:flex;gap:10px;padding:10px 0;border-top:1px solid var(--line);align-items:flex-start}.nv-item a{color:inherit;text-decoration:none;font-weight:600}.nv-item .nv-meta{font-size:.78rem;color:var(--mute);margin-top:3px}
+.nv-thumb{flex:0 0 120px;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#0006;position:relative;padding:0;border:0;min-height:0}.nv-thumb img{width:100%;height:100%;object-fit:cover;display:block}.nv-thumb::after{content:"▶";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:1.3rem;text-shadow:0 1px 6px #000}
+.nv-player{width:100%;aspect-ratio:16/9;border:0;border-radius:12px;margin-top:8px;background:#000}.nv-blog{flex:0 0 34px;height:34px;border-radius:9px;background:#ffffff14;display:grid;place-items:center;font-size:.95rem}
+.nv-src{font-size:.82rem;color:var(--mute)}.nv-src span{display:inline-block;margin:2px 6px 2px 0}.nv-src span.off{text-decoration:line-through;opacity:.6}`;document.head.append(css);
+const store=(k,v)=>{try{if(v===undefined)return JSON.parse(localStorage.getItem(k)||'null');localStorage.setItem(k,JSON.stringify(v))}catch{return null}};
+
+/* ---- trip planner guide ---- */
+const GKEY='parkCountdown.guide';const WDW='e957da41-3552-4cf6-b636-5babc5cbc4e5';
+const guide=h('section','card');guide.id='planGuide';guide.hidden=true;if(cal)cal.before(guide);else return;
+const gs=()=>store(GKEY)||{};const gset=(tripId,k,v)=>{const s=gs();(s[tripId]=s[tripId]||{})[k]=v;store(GKEY,s)};
+const when=(ms,tz)=>new Date(ms).toLocaleString(undefined,Object.assign({weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'},tz?{timeZone:tz}:{}));
+const inDays=ms=>{const d=Math.ceil((ms-Date.now())/864e5);return d<=0?'now':d===1?'tomorrow':'in '+d+' days'};
+function steps(t){const s=gs()[t.id]||{},days=tripDays(t),planned=days.filter(d=>dayPlan(t,d).length),parks=[...new Set(days.flatMap(d=>dayPlan(t,d)).filter(id=>!isExtra(id)))],picked=parks.filter(id=>(state.favs?.[id]||[]).length);
+ let crowdTip='';try{const sc=days.map(d=>[d,Number(crowd(d,t.destId))]).filter(x=>Number.isFinite(x[1]));if(sc.length>1){const lo=sc.reduce((a,b)=>b[1]<a[1]?b:a),hi=sc.reduce((a,b)=>b[1]>a[1]?b:a);if(lo[1]!==hi[1])crowdTip=` Quietest day: ${fmtDay(lo[0],{weekday:'short',month:'short',day:'numeric'})} (${lo[1]}/10), busiest: ${fmtDay(hi[0],{weekday:'short',month:'short',day:'numeric'})} (${hi[1]}/10). Put your biggest park on the quietest day.`}}catch{}
+ const out=[{id:'days',title:'Choose a park for each day',sub:`${planned.length} of ${days.length} days planned.${crowdTip}`,done:planned.length===days.length,go:['Open calendar',()=>cal.scrollIntoView({behavior:'smooth',block:'start'})]},
+  {id:'rides',title:'Pick your must-do rides',sub:parks.length?`${picked.length} of ${parks.length} parks have favorites. They drive your queue times, predictions and ride order.`:'Choose parks first, then star the rides you care about.',done:parks.length>0&&picked.length===parks.length,go:['Parks & Rides',()=>showTab('pick')]}];
+ let dining=0;try{dining=resTime(t)}catch{}
+ if(dining)out.push({id:'dining',title:'Book dining and extras',sub:`Booking opens ${inDays(dining)}: ${when(dining,t.tz)} resort time (60 days before check-in). Popular tables go within minutes.`,done:!!s.dining,manual:true,go:['Reservations',()=>{const b=[...document.querySelectorAll('#pcMenu button')].find(x=>/^Reservations/.test(x.textContent));if(b)b.click();else showTab('extras')}]});
+ if(t.destId===WDW){let a=0,b=0;try{a=zonedTime(addDays(t.date,-7),'07:00',t.tz||'America/New_York');b=zonedTime(addDays(t.date,-3),'07:00',t.tz||'America/New_York')}catch{}
+  if(a)out.push({id:'ll',title:'Buy Lightning Lane passes',sub:`Staying at a Disney hotel: booking opens ${inDays(a)}, ${when(a,t.tz)} resort time (7 days before check-in, whole stay). Staying elsewhere: 3 days before each park day (first day ${when(b,t.tz)}). Check Disney's site for current rules.`,done:!!s.ll,manual:true})}
+ out.push({id:'pred',title:'Check predicted waits and ride order',sub:'See the best time for each ride on each park day and a suggested order.',done:!!s.pred,go:['Wait predictions',()=>{gset(t.id,'pred',true);showTab('predict')}]},
+  {id:'news',title:'Catch up on news and tips',sub:'Latest Disney blog posts and vlogs: closures, new rides, food and planning tips.',done:!!s.news,go:['News & videos',()=>{gset(t.id,'news',true);showTab('news')}]});
+ return out}
+function renderGuide(){let t=null;try{t=nextTrip()}catch{}let started=false;try{started=t&&Date.now()>tripTime(t)}catch{}
+ if(!t||started||(typeof homeDay!=='undefined'&&homeDay)){guide.hidden=true;return}guide.hidden=false;
+ const list=steps(t),done=list.filter(x=>x.done).length,next=list.find(x=>!x.done),open=!gs().collapsed;
+ const sig=JSON.stringify([t.id,open,list.map(x=>[x.done,x.sub])]);if(guide.dataset.sig===sig)return;guide.dataset.sig=sig;guide.replaceChildren();
+ const head=h('div','pg-head');head.append(h('h2',null,'Trip planner'),h('span','muted',`${done} of ${list.length} done ${open?'▾':'▸'}`));head.setAttribute('role','button');head.tabIndex=0;head.setAttribute('aria-expanded',String(open));
+ const toggle=()=>{const s=gs();s.collapsed=open;store(GKEY,s);renderGuide()};head.onclick=toggle;head.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}};
+ const bar=h('div','pg-bar'),fill=h('i');fill.style.width=Math.round(done/list.length*100)+'%';bar.append(fill);guide.append(head,bar);
+ if(next){const box=h('div','pg-next');box.append(h('b',null,'Next: '+next.title),h('span','pg-s',next.sub));if(next.go){const b=h('button','primary',next.go[0]);b.type='button';b.onclick=next.go[1];box.append(document.createElement('br'),b)}guide.append(box)}else guide.append(h('p','pg-s','All set. Enjoy the countdown!'));
+ if(!open)return;
+ for(const x of list){if(x===next&&!x.manual)continue;const r=h('div','pg-step'+(x.done?' done':''));const dot=h(x.manual?'button':'span','pg-dot',x.done?'✓':'');if(x.manual){dot.type='button';dot.setAttribute('aria-label',(x.done?'Mark not done: ':'Mark done: ')+x.title);dot.onclick=()=>{gset(t.id,x.id,!x.done);renderGuide()}}
+  const body=h('div','pg-body');body.append(h('div','pg-t',x.title),h('p','pg-s',x.sub+(x.manual&&!x.done?' Tap the circle when done.':'')));r.append(dot,body);if(x.go&&x!==next){const b=h('button','pg-go',x.go[0]);b.type='button';b.onclick=x.go[1];r.append(b)}guide.append(r)}}
+const prevHome=renderHome;renderHome=function(){prevHome();try{renderGuide()}catch(e){console.warn('guide',e)}};
+const prevShow0=showTab;showTab=function(t){prevShow0(t);if(t==='home'){try{renderGuide()}catch{}}if(t==='predict'){try{const n=nextTrip();if(n)gset(n.id,'pred',true)}catch{}}};
+setTimeout(()=>{try{renderGuide()}catch{}},600);
+
+/* ---- news & videos ---- */
+const CKEY='parkCountdown.feeds.channels';
+const btn=h('button',null,'News & videos');btn.type='button';btn.dataset.tab='news';btn.onclick=()=>showTab('news');nav.insertBefore(btn,nav.querySelector('button[data-tab="extras"]')||null);
+const panel=h('section','card');panel.dataset.panel='news';panel.hidden=true;wrap.append(panel);
+panel.innerHTML=`<h2 style="margin-top:0">News & videos</h2><p class="pg-s" style="margin-top:0">The latest from Disney planning blogs and YouTube vloggers. Tap a video to play it here, or a headline to read it on the blog.</p>
+<div class="nv-bar" id="nvKind"></div><label for="nvFind">Search headlines</label><input id="nvFind" type="search" placeholder="e.g. Tron, EPCOT, dining" autocomplete="off">
+<div id="nvStatus" class="pg-s" style="margin-top:10px"></div><div id="nvList"></div>
+<details style="margin-top:14px"><summary style="cursor:pointer;font-weight:600">Sources & my YouTube channels</summary><div id="nvSrc" class="nv-src" style="margin-top:8px"></div>
+<label for="nvAdd" style="margin-top:10px">Add a YouTube channel</label><div style="display:flex;gap:8px"><input id="nvAdd" placeholder="@handle or channel link" autocomplete="off" autocapitalize="off"><button type="button" id="nvAddBtn">Add</button></div><div id="nvMine" class="nv-src" style="margin-top:8px"></div></details>`;
+const $n=s=>panel.querySelector(s);let data=null,kind='all',loading=false,loadedAt=0,shown=30;
+const mine=()=>{const v=store(CKEY);return Array.isArray(v)?v.filter(x=>typeof x==='string').slice(0,8):[]};
+function cleanChannel(raw){let s=String(raw||'').trim();const id=s.match(/(UC[\w-]{22})(?![\w-])/);if(id&&(s===id[1]||/channel\//.test(s)))return id[1];s=s.replace(/^https?:\/\/(www\.|m\.)?youtube\.com\//i,'').replace(/^@/,'').split(/[/?#]/)[0];return /^[\w.-]{2,40}$/.test(s)?s:''}
+function tripWords(){try{const t=nextTrip();if(!t)return null;const w=new Set();const dest=String(t.destName||'').replace(/\(.*?\)/g,'').trim();if(dest)w.add(dest);if(t.destId===WDW)w.add('WDW');const names=[...(parksForDest(t.destId)||[]).map(p=>p.name),...tripDays(t).flatMap(d=>dayPlan(t,d)).map(id=>parkName(t,id))];for(const pn of names){const p={name:pn};const n=String(p.name||'').replace(/^Disney'?s?\s+/i,'').replace(/\s+(Theme\s+)?Park$/i,'').trim();if(n.length>3)w.add(n)}
+ if(!w.size)return null;return new RegExp([...w].map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|'),'i')}catch{return null}}
+const ago=d=>{const t=Date.parse(d);if(!Number.isFinite(t))return '';const m=Math.max(0,Math.round((Date.now()-t)/6e4));return m<60?m+' min ago':m<1440?Math.round(m/60)+' hr ago':m<10080?Math.round(m/1440)+' days ago':new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'})};
+const safe=u=>{try{const x=new URL(u);return x.protocol==='https:'?x.href:''}catch{return ''}};
+function draw(){const kinds=[['all','All'],['video','Videos'],['blog','Blogs']];const tw=tripWords();if(tw)kinds.push(['trip','For my trip']);
+ $n('#nvKind').replaceChildren(...kinds.map(([k,l])=>{const b=h('button',kind===k?'on':'',l);b.type='button';b.onclick=()=>{kind=k;shown=30;draw()};return b}));
+ const list=$n('#nvList'),status=$n('#nvStatus');list.replaceChildren();if(!data){status.textContent=loading?'Loading the latest…':status.textContent;return}
+ const q=$n('#nvFind').value.trim().toLowerCase();let items=data.items.filter(x=>(kind==='all'||kind==='trip'||x.kind===kind)&&(kind!=='trip'||!tw||tw.test(x.title))&&(!q||(x.title+' '+x.source).toLowerCase().includes(q)));
+ status.textContent=items.length?`${items.length} recent ${kind==='video'?'videos':kind==='blog'?'posts':'posts and videos'} · updated ${ago(data.updated)}`:q?'Nothing recent matches that.':'Nothing to show right now.';
+ if(q){const a=h('a',null,`Search YouTube for “${$n('#nvFind').value.trim()}”`);a.href='https://www.youtube.com/results?search_query='+encodeURIComponent($n('#nvFind').value.trim()+' Disney');a.target='_blank';a.rel='noopener';a.style.cssText='display:inline-block;margin:8px 0;color:var(--gold)';list.append(a)}
+ for(const x of items.slice(0,shown)){const link=safe(x.link);if(!link)continue;const row=h('div','nv-item'),body=h('div');body.style.cssText='flex:1;min-width:0';const a=h('a',null,x.title);a.href=link;a.target='_blank';a.rel='noopener';body.append(a,h('div','nv-meta',`${x.source}${x.date?' · '+ago(x.date):''}`));
+  if(x.kind==='video'&&/^[\w-]{11}$/.test(x.videoId||'')){const tb=h('button','nv-thumb');tb.type='button';tb.setAttribute('aria-label','Play: '+x.title);const img=h('img');img.loading='lazy';img.alt='';img.src='https://i.ytimg.com/vi/'+x.videoId+'/mqdefault.jpg';tb.append(img);
+   tb.onclick=()=>{list.querySelectorAll('.nv-player').forEach(p=>p.remove());const f=h('iframe','nv-player');f.src='https://www.youtube-nocookie.com/embed/'+x.videoId+'?autoplay=1&playsinline=1';f.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';f.allowFullscreen=true;f.title=x.title;body.append(f);f.scrollIntoView({behavior:'smooth',block:'center'})};row.append(tb,body)}
+  else{row.append(h('span','nv-blog','📰'),body)}list.append(row)}
+ if(items.length>shown){const more=h('button',null,'Show more');more.type='button';more.style.marginTop='10px';more.onclick=()=>{shown+=30;draw()};list.append(more)}
+ $n('#nvSrc').replaceChildren(...data.sources.filter(s=>!s.mine).map(s=>h('span',s.ok?'':'off',(s.kind==='video'?'▶ ':'📰 ')+s.name)));
+ const m=mine();$n('#nvMine').replaceChildren(...m.map(c=>{const s=h('span');const st=data.sources.find(x=>x.handle===c);s.append((st&&!st.ok?'⚠ not found: ':'▶ ')+(st?.ok?st.name:c)+' ');const rm=h('button',null,'Remove');rm.type='button';rm.style.cssText='padding:2px 8px;font-size:.75rem;min-height:0';rm.onclick=()=>{store(CKEY,mine().filter(v=>v!==c));load(true)};s.append(rm);return s}))}
+async function load(force){if(loading)return;if(!force&&data&&Date.now()-loadedAt<15*60e3){draw();return}loading=true;if(!data)$n('#nvStatus').textContent='Loading the latest…';
+ try{const m=mine();const r=await fetch('/api/feeds'+(m.length?'?yt='+encodeURIComponent(m.join(',')):''));if(!r.ok)throw Error('The news service is unavailable right now ('+r.status+').');const j=await r.json();if(!Array.isArray(j.items))throw Error('The news service sent something unexpected.');data={updated:j.updated,items:j.items.filter(x=>x&&typeof x.title==='string'&&safe(x.link)),sources:Array.isArray(j.sources)?j.sources:[]};loadedAt=Date.now()}
+ catch(e){if(!data)$n('#nvStatus').textContent=navigator.onLine===false?'You are offline. News needs a connection.':e.message}finally{loading=false;draw()}}
+$n('#nvFind').addEventListener('input',()=>{shown=30;draw()});
+const add=()=>{const c=cleanChannel($n('#nvAdd').value);if(!c){$n('#nvStatus').textContent='That does not look like a YouTube channel. Paste a link like youtube.com/@name.';return}const m=mine();if(m.length>=8){$n('#nvStatus').textContent='You can add up to 8 channels. Remove one first.';return}if(!m.some(v=>v.toLowerCase()===c.toLowerCase()))store(CKEY,[...m,c]);$n('#nvAdd').value='';load(true)};
+$n('#nvAddBtn').onclick=add;$n('#nvAdd').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();add()}});
+const prevShow=showTab;showTab=function(t){prevShow(t);if(t==='news')load(false);else panel.querySelectorAll('.nv-player').forEach(p=>p.remove())};
+})();

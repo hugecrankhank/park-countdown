@@ -12,7 +12,7 @@ feeds={'updated':'2026-11-26T04:00:00Z','items':[
  {'kind':'blog','title':'Bad link','link':'javascript:alert(1)','source':'Evil','date':'2026-11-25T02:00:00Z'}],
  'sources':[{'name':'Some Blog','kind':'blog','ok':True},{'name':'Vlogger','kind':'video','ok':True}]}
 kids={'children':[{'id':MK,'name':'Magic Kingdom Park','entityType':'PARK','parentId':WDW},{'id':'r1','name':'Be Our Guest Restaurant','entityType':'RESTAURANT','parentId':MK},{'id':'r2','name':'Jaleo','entityType':'RESTAURANT','parentId':WDW},{'id':'a1','name':'Space Mountain','entityType':'ATTRACTION','parentId':MK}]}
-sb={'user':{'id':'u-a','email':'a@test.com'},'tables':{'account_trips':[]},'rpc':{'is_app_admin':False,'restaurant_ratings_for':[{'restaurant_id':'r2','average':4.5,'votes':2,'mine':None}]}}
+sb={'user':{'id':'u-a','email':'a@test.com'},'tables':{'account_trips':[]},'rpc':{'my_tier':{'tier':'plus','via':'admin'},'is_app_admin':False,'restaurant_ratings_for':[{'restaurant_id':'r2','average':4.5,'votes':2,'mine':None}]}}
 async def main():
   async with async_playwright() as p:
     b=await p.chromium.launch(executable_path='/usr/bin/google-chrome')

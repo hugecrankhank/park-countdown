@@ -34,7 +34,7 @@ async def main():
     print('errors:',errs)
     # 2. sender creates a share
     trip=dict(TRIP,id='t-a',owner_id='u-a')
-    st2={'user':{'id':'u-a','email':'a@test.com'},'tables':{'account_trips':[trip]},'rpc':{'create_trip_share':'b'*48,'my_trip_shares':[{'id':'s1','trip_id':'t-a','audience':'friend','claims':0,'max_claims':20,'expires_at':'2027-12-01T00:00:00Z','revoked_at':None,'created_at':'2026-11-25T00:00:00Z'}]}}
+    st2={'user':{'id':'u-a','email':'a@test.com'},'tables':{'account_trips':[trip]},'rpc':{'my_tier':{'tier':'plus','via':'admin'},'create_trip_share':'b'*48,'my_trip_shares':[{'id':'s1','trip_id':'t-a','audience':'friend','claims':0,'max_claims':20,'expires_at':'2027-12-01T00:00:00Z','revoked_at':None,'created_at':'2026-11-25T00:00:00Z'}]}}
     pg,errs=await page(b,st2,'http://localhost:8765/index.html')
     await pg.click('.pc-account-btn');await pg.wait_for_timeout(1200)
     await pg.click('text=Share (QR code)');await pg.fill('[id^=pc-share-name]','Robert');await pg.click('text=Friends & family');await pg.wait_for_timeout(800)

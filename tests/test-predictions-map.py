@@ -1,5 +1,6 @@
 # Browser test for wait predictions and the walking map (needs: cd dist && python3 -m http.server 8765)
-import asyncio, json, math
+import asyncio, json, math, os
+FAKE=open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'fake-supabase.js')).read()
 from playwright.async_api import async_playwright
 MK='75ea578a-adc8-4116-a54d-dccb60765ef9'; WDW='e957da41-3552-4cf6-b636-5babc5cbc4e5'
 rides=[('r-sdmt','Seven Dwarfs Mine Train',70),('r-space','Space Mountain',55),('r-pirates','Pirates of the Caribbean',30)]
@@ -19,6 +20,7 @@ async def main():
     async def route(r):
       u=r.request.url
       if 'account-config.js' in u: return await r.fulfill(body='window.PARK_ACCOUNTS={url:"https://x.supabase.co",key:"sb_publishable_x"};',content_type='application/javascript')
+      if 'supabase-js' in u: return await r.fulfill(body=FAKE,content_type='application/javascript')
       if 'x.supabase.co/rest/v1/rpc/predict_waits' in u: return await r.fulfill(body=json.dumps(pred),content_type='application/json')
       if 'x.supabase.co/rest/v1/rpc/wait_prediction_status' in u: return await r.fulfill(body=json.dumps({'first_day':'2026-11-25','days':12,'sampled_days':['2026-11-25','2026-11-26']}),content_type='application/json')
       if 'themeparks.wiki/v1/destinations' in u: return await r.fulfill(body=json.dumps(dests),content_type='application/json')
@@ -30,7 +32,7 @@ async def main():
     await pg.route('**/*',route)
     await pg.goto('http://localhost:8765/index.html')
     pts=[[28.4187+i*0.0004,-81.5812+i*0.0003] for i in range(60)]
-    await pg.evaluate("([s,p])=>{localStorage.setItem('parkCountdown.v1',JSON.stringify(s));const d=new Date();const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');localStorage.setItem('parkCountdown.v1.walk',JSON.stringify({gps:{[k+'T10']:2500},health:{},paths:{[k]:p}}));sessionStorage.setItem('parkCountdown.portal.entered','1')}",[state,pts])
+    await pg.evaluate("([s,p,PRED])=>{localStorage.setItem('parkCountdown.v1',JSON.stringify(s));localStorage.setItem('fakesb',JSON.stringify({user:{id:'u-a',email:'a@test.com'},tables:{account_trips:[]},rpc:{my_tier:{tier:'plus',via:'admin'},predict_waits:PRED}}));const d=new Date();const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');localStorage.setItem('parkCountdown.v1.walk',JSON.stringify({gps:{[k+'T10']:2500},health:{},paths:{[k]:p}}));sessionStorage.setItem('parkCountdown.portal.entered','1')}",[state,pts,pred])
     await pg.reload();await pg.wait_for_timeout(1500)
     await pg.click('.pc-menu-btn');print('menu:',await pg.evaluate("[...document.querySelectorAll('#pcMenu button')].map(b=>b.textContent).join(' | ')"))
     await pg.click('#pcMenu button[data-tab=predict]');await pg.wait_for_timeout(1500)

@@ -12,3 +12,4 @@ create sequence if not exists net.req_seq;
 create or replace function net.http_get(url text, timeout_milliseconds int default 5000) returns bigint language sql as $$ select nextval('net.req_seq') $$;
 create schema if not exists cron;
 create or replace function cron.schedule(name text, sched text, cmd text) returns bigint language sql as $$ select 1::bigint $$;
+alter table auth.users add column if not exists created_at timestamptz default now();

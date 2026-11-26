@@ -35,3 +35,4 @@
 .pc-top .pc-home-btn{min-height:44px;padding:8px 16px;font-weight:600}
 .pc-menu .pc-menu-head{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);padding:8px 6px 0}
 .pc-menu{max-height:calc(100vh - 150px);overflow:auto;-webkit-overflow-scrolling:touch}
+.pc-update-banner{display:block;width:100%;text-align:left;margin:0 0 12px;padding:12px 14px;border:1px solid var(--gold);border-radius:14px;background:#f5c86b1f;color:inherit;font-weight:600;white-space:normal}

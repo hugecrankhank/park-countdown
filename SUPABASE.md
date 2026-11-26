@@ -46,3 +46,10 @@ Make an account an administrator (SQL editor):
 ```sql
 insert into public.app_admins(user_id) select id from auth.users where email = 'you@example.com';
 ```
+
+## Tiers (Free / Plus / Planner Pro)
+
+- `my_tier()` reports an account's tier. Plus comes from `account_tiers` (admin grant, beta, later Stripe), from planner access, or from being a planner's client.
+- Paid features are locked in the database: `predict_waits`, `create_trip_share`, `push_trip_share_update`, and adding files to the `pictures` storage bucket.
+- While payments are not live, `app_settings.beta_plus_open` lets anyone turn Plus on for 30 days. Administrators switch it, and grant or remove Plus and planner access, under **My account → Accounts**.
+- Picture backups live in the private `pictures` bucket under a folder named after the account id (1 MB per file, 600 files per account).

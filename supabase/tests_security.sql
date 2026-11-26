@@ -128,3 +128,37 @@ reset role; set role anon;
 select 'anon sees avg after B removed' t, average, votes, mine is null from public.restaurant_ratings_for('wdw');
 select public.rate_restaurant('wdw','rest1',1);  -- expect error
 reset role;
+
+-- tiers: free accounts are locked out of paid features; beta, admin grants and planners unlock them
+insert into auth.users(id,email,email_confirmed_at) values ('00000000-0000-0000-0000-0000000000f1','free@test.com',now()) on conflict do nothing;
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
+select 'free tier' t, public.my_tier()->>'tier';
+select * from public.predict_waits('mk', current_date);  -- expect PLUS_REQUIRED
+select public.admin_set_plus('00000000-0000-0000-0000-0000000000f1', null);  -- expect admin error
+select 'beta start' t, public.start_beta_plus()->>'via';
+select 'plus can predict' t, count(*) >= 0 from public.predict_waits('mk', current_date);
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select public.admin_set_plus('00000000-0000-0000-0000-0000000000f1', 0);
+select public.admin_set_beta(false);
+select 'admin lists accounts' t, count(*) > 3 from public.admin_accounts();
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
+select public.start_beta_plus();  -- expect beta ended
+select 'back to free' t, public.my_tier()->>'tier';
+-- live updates: planner P (has Plus) shares, free user F adds it, P pushes an update with a note
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+insert into public.account_trips(owner_id,title,arrival,departure,destination) values ('00000000-0000-0000-0000-0000000000a1','P trip','2027-03-01','2027-03-05','Walt Disney World');
+select public.create_trip_share((select id from public.account_trips where title='P trip'),'friend','{"schema":1,"days":{},"details":{"plans":[]}}'::jsonb,'Pat') as utoken \gset
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
+select public.create_trip_share((select id from public.account_trips limit 1),'friend',null,'x');  -- expect PLUS_REQUIRED (or trip not found)
+select public.claim_trip_share(:'utoken')->>'id' as ftrip \gset
+select 'no update yet' t, count(*) from public.my_share_updates();
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+update public.account_trips set title='P trip v2' where title='P trip';
+select 'pushed to' t, public.push_trip_share_update((select id from public.my_trip_shares() where audience='friend' limit 1),'{"schema":1,"days":{"2027-03-02":{"parks":["mk"]}},"details":{"plans":[{"id":"1","name":"Lunch"}],"budget":900}}'::jsonb,'Added lunch!');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
+select 'update waiting' t, sender, title, note from public.my_share_updates();
+select 'applied' t, jsonb_array_length(public.apply_share_update(:'ftrip'::uuid)#>'{plan,details,plans}');
+select 'F trip updated, no budget' t, t.title, (s.payload#>>'{details,budget}') from public.account_trips t join public.account_sync_snapshots s on s.trip_id=t.id where t.id=:'ftrip'::uuid;
+select public.apply_share_update(:'ftrip'::uuid);  -- expect none waiting
+reset role;

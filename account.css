@@ -7,3 +7,19 @@
 
 /* Mobile account access: stable, visible sign-in controls. */
 #pcPortal{padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))} @media(display-mode:standalone){#pcPortal{padding-top:calc(16px + max(env(safe-area-inset-top,0px),50px))}} #pcPortal .pc-access{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 16px}#pcPortal .pc-access button{width:100%;margin:0}#pcPortal .pc-auth-card{margin-top:0}#pcPortal .pc-auth-form input{font-size:16px;min-height:48px}#pcPortal .pc-auth-submit{width:100%;margin:12px 0 6px;min-height:48px}#pcPortal .pc-auth-submit:disabled{opacity:.55;cursor:wait}#pcPortal .pc-auth-actions{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}#pcPortal .pc-password-toggle{font-size:.85rem;min-height:44px}#pcPortal .pc-notice:empty{display:none}#pcPortal .pc-auth-status{margin-bottom:8px}#pcPortal[data-view="auth"] .pc-top{margin-bottom:12px}
+
+/* Slim header: Home · Menu · profile */
+.tabs.pc-slim{flex-wrap:nowrap!important;overflow:visible!important;position:relative;z-index:30;align-items:center;gap:8px}
+.tabs.pc-slim>button{flex:0 0 auto;min-height:44px;padding:8px 16px}
+.tabs.pc-slim .pc-spacer{flex:1 1 auto}
+.tabs.pc-slim .pc-menu-btn.open{border-color:var(--gold)}
+.tabs.pc-slim .pc-account-btn{width:46px;height:46px;min-height:46px;padding:0;border-radius:50%;overflow:hidden;display:grid;place-items:center}
+.pc-face{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;overflow:hidden;color:var(--mute)}
+.pc-face svg{width:62%;height:62%}
+.pc-face img{width:100%;height:100%;object-fit:cover;display:block}
+.pc-menu{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:40;display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:18px;background:#1b1e4a;border:1px solid var(--line);box-shadow:0 14px 40px #0009}
+.pc-menu[hidden]{display:none}
+.tabs.pc-slim .pc-menu button{width:100%;text-align:left;padding:12px 14px;min-height:46px;font-size:1rem;white-space:normal}
+.pc-menu .pc-menu-extra{color:var(--mute)}
+.pc-profile{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 12px}
+.pc-profile .pc-face{width:56px;height:56px;border:1px solid var(--line);background:#00000030}

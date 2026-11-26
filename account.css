@@ -23,3 +23,7 @@
 .pc-menu .pc-menu-extra{color:var(--mute)}
 .pc-profile{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 12px}
 .pc-profile .pc-face{width:56px;height:56px;border:1px solid var(--line);background:#00000030}
+.pc-shared-plan{margin:8px 0;border:1px solid var(--line);border-radius:12px;padding:8px 12px}
+.pc-shared-plan summary{cursor:pointer;font-weight:600;min-height:32px}
+.pc-shared-plan h4{margin:10px 0 2px}
+.pc-share .pc-choice{flex:1 1 220px}

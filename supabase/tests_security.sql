@@ -93,3 +93,22 @@ select 'anon status' t, public.wait_prediction_status('e957da41-3552-4cf6-b636-5
 select count(*) from public.wait_profile;  -- expect permission denied
 select public.wait_collect();               -- expect permission denied
 reset role;
+
+-- planner upgrade requests: X asks, A (admin) approves, X becomes a planner
+insert into public.app_admins(user_id) values ('00000000-0000-0000-0000-00000000000a');
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000ff');
+select 'request emailed to' t, public.request_planner_upgrade('Xavier','Magic Travel','555-0100','','Please approve')->>'admin_email';
+select 'X request status' t, public.my_planner_request()->>'status';
+select public.planner_requests_for_admin();  -- not admin: expect error
+select count(*) from public.planner_requests;  -- expect permission denied
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select public.request_planner_upgrade('Planner');  -- already a planner: expect error
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select 'admin sees pending' t, count(*) from public.planner_requests_for_admin();
+select public.decide_planner_request(id, true) from public.planner_requests_for_admin();
+reset role;
+select 'X now planner' t, exists(select 1 from public.planner_access where user_id='00000000-0000-0000-0000-0000000000ff');
+set role authenticated;
+select public.decide_planner_request(id, false) from public.planner_requests_for_admin(true) limit 1;  -- already handled: expect error
+reset role;

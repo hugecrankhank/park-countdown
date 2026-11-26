@@ -35,3 +35,14 @@ To complete one, delete the user in **Authentication → Users**. Their trips, s
 2. **Authentication → Emails → SMTP Settings:** set up your own email sender. Supabase's built-in sender is for testing only: it only delivers to your own team's addresses and sends just a few emails per hour.
 3. **Authentication → Providers → Email:** keep "Confirm email" on. Invitations and planner messages rely on verified emails.
 4. **Leaked password protection** (Authentication → Policies) blocks passwords known from data breaches. It requires a paid Supabase plan.
+
+## Travel planner upgrade requests
+
+Travelers tap **Upgrade to travel planner** in My account. The request is saved in `planner_requests` and their email app opens addressed to the first app administrator.
+Administrators see **Planner requests** in My account and approve or decline there (approving adds the account to `planner_access`).
+
+Make an account an administrator (SQL editor):
+
+```sql
+insert into public.app_admins(user_id) select id from auth.users where email = 'you@example.com';
+```

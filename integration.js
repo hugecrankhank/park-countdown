@@ -429,3 +429,87 @@ window.addEventListener('storage',e=>{if(e.key===V2)refreshHome()});setInterval(
 const originalGetLive=getLive;getLive=async function(parkId,force){const rows=await originalGetLive(parkId,force);try{const observed=liveCache[parkId]?.at||Date.now(), key='parkCountdown.v2.originalLive', samples=get(key,{}), current=samples[parkId]||{at:0,history:{},statuses:{}};if(observed>current.at){current.at=observed;for(const r of rows){current.statuses[r.id]=r.status;const wait=r.queue?.STANDBY?.waitTime;if(r.status==='OPERATING'&&Number.isFinite(wait)){const h=current.history[r.id]||[];if(!h.length||observed-h[h.length-1].at>=60000)h.push({at:observed,w:wait});current.history[r.id]=h.slice(-72)}}samples[parkId]=current;localStorage.setItem(key,JSON.stringify(samples))}}catch(e){}return rows};
 refreshHome();updateArtStatus();loadResortArt().catch(err=>{artStatus.textContent='Resort picture storage unavailable: '+err.message});if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{});
 })();
+
+/* ---------- Smart wait predictions + walking map (roadmap 07 / 10) ---------- */
+(()=>{'use strict';
+const nav=document.querySelector('.tabs'),wrap=document.querySelector('.wrap');if(!nav||!wrap)return;
+const h=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n};
+const css=h('style');css.textContent=`.sp-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sp-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.sp-chips button{padding:6px 10px;font-size:.85rem}.sp-chips button.on{border-color:var(--gold);color:var(--gold)}
+.sp-ride{border-top:1px solid var(--line);padding:10px 0}.sp-ride h3{margin:0;font-size:1rem;display:flex;justify-content:space-between;gap:8px}.sp-ride h3 b{color:var(--gold);white-space:nowrap}
+.sp-bars{display:flex;align-items:flex-end;gap:1px;height:46px;margin-top:6px}.sp-bars i{flex:1;background:#7c86ff88;border-radius:2px 2px 0 0;min-height:2px}.sp-bars i.best{background:#5ee0a0}.sp-bars i.at{outline:2px solid var(--gold)}
+.sp-axis{display:flex;justify-content:space-between;font-size:.68rem;color:var(--mute)}.sp-plan li{margin:6px 0}.sp-note{font-size:.82rem;color:var(--mute)}
+.wk-dist{background:#141637e8;color:#fff;border-radius:12px;padding:8px 10px;font:600 13px/1.35 system-ui;box-shadow:0 4px 14px #0007}.wk-dist small{display:block;font-weight:400;opacity:.8}
+.wk-mile{background:var(--gold,#f5c86b);color:#141637;border-radius:10px;font:700 10px/16px system-ui;padding:0 5px;white-space:nowrap;box-shadow:0 1px 4px #0008}`;document.head.append(css);
+
+/* ---- predictions page ---- */
+const btn=h('button',null,'Wait predictions');btn.type='button';btn.dataset.tab='predict';btn.onclick=()=>showTab('predict');
+const before=nav.querySelector('button[data-tab="extras"]');nav.insertBefore(btn,before||null);
+const panel=h('section','card');panel.dataset.panel='predict';panel.hidden=true;wrap.append(panel);
+panel.innerHTML=`<h2 style="margin-top:0">Smart wait predictions</h2><p class="sp-note" style="margin-top:0">Predicted standby waits by time of day for any date, based on posted waits collected every 15 minutes and adjusted for expected crowds. Today also uses the park's own forecast.</p>
+<div class="sp-controls"><div><label for="spPark">Park</label><select id="spPark"></select></div><div><label for="spDate">Date</label><input id="spDate" type="date"></div></div>
+<div class="sp-chips" id="spDays"></div>
+<div class="sp-controls" style="margin-top:4px"><div><label for="spTime">Arriving at the ride around</label><select id="spTime"></select></div><div><label for="spShow">Show</label><select id="spShow"><option value="fav">My rides</option><option value="all">All rides</option></select></div></div>
+<div id="spStatus" class="sp-note" style="margin-top:10px"></div><div id="spPlan"></div><div id="spList"></div>`;
+const $p=s=>panel.querySelector(s);
+const slotLabel=s=>new Date(2000,0,1,Math.floor(s/2),(s%2)*30).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+for(let s=12;s<48;s++){const o=h('option',null,slotLabel(s));o.value=s;$p('#spTime').append(o)}
+let reqSeq=0;
+function destOfPark(pid){return destinations.find(d=>(d.parks||[]).some(p=>p.id===pid))}
+function parkChoices(){const t=nextTrip(),seen=new Map();const add=(id,name)=>{if(id&&!isExtra(id)&&!seen.has(id))seen.set(id,name||state.parks?.[id]?.name||'Park')};
+ if(t){for(const d of tripDays(t))for(const id of dayPlan(t,d))add(id,parkName(t,id));for(const p of parksForDest(t.destId))add(p.id,p.name)}
+ for(const [id,p] of Object.entries(state.parks||{}))add(id,p.name);return [...seen]}
+function setup(){const sel=$p('#spPark'),cur=sel.value,list=parkChoices();sel.replaceChildren(...list.map(([id,name])=>{const o=h('option',null,name);o.value=id;return o}));
+ if(!list.length){$p('#spStatus').textContent='Pick a resort and parks on Parks & Rides first.';return false}
+ const t=nextTrip(),days=t?tripDays(t):[];const dateIn=$p('#spDate');
+ if(!dateIn.value){const today=todayIn(t?.tz);dateIn.value=days.find(d=>d>=today&&dayPlan(t,d).some(id=>!isExtra(id)))||days[0]||today;}
+ const planned=t?dayPlan(t,dateIn.value).find(id=>!isExtra(id)):null;sel.value=list.some(([id])=>id===cur)?cur:(planned&&list.some(([id])=>id===planned)?planned:list[0][0]);
+ const chips=$p('#spDays');chips.replaceChildren();if(t)days.forEach((d,i)=>{const parks=dayPlan(t,d).filter(id=>!isExtra(id));if(!parks.length)return;const b=h('button',d===dateIn.value?'on':'',`Day ${i+1} · ${parkName(t,parks[0]).replace(/^Disney'?s? /,'').replace(/ Theme Park| Park$/,'')}`);b.type='button';b.onclick=()=>{dateIn.value=d;sel.value=parks[0];load()};chips.append(b)});
+ if(!$p('#spTime').dataset.set){$p('#spTime').value=String(19);$p('#spTime').dataset.set='1'}return true}
+function crowdFactor(destId,date,sampled){try{if(typeof crowd!=='function'||!sampled?.length)return 1;const score=d=>{const v=Number(crowd(d,destId));return Number.isFinite(v)?Math.min(10,Math.max(1,v)):5};const avg=sampled.reduce((a,d)=>a+score(d),0)/sampled.length;const f=(0.55+0.075*score(date))/(0.55+0.075*avg);return Math.min(1.6,Math.max(0.6,f))}catch{return 1}}
+async function rpc(name,args){const cfg=window.PARK_ACCOUNTS||{};if(!cfg.url||!cfg.key)throw Error('Prediction service is not configured.');const r=await fetch(cfg.url.replace(/\/$/,'')+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:cfg.key,authorization:'Bearer '+cfg.key,'content-type':'application/json'},body:JSON.stringify(args)});if(!r.ok)throw Error('Prediction service unavailable ('+r.status+').');return r.json()}
+async function todayForecast(parkId){try{const j=await getJSON(`/entity/${parkId}/live`);const out={};for(const x of j.liveData||[]){if(x.entityType!=='ATTRACTION')continue;const f={};for(const p of x.forecast||[]){const m=String(p.time||'').match(/T(\d{2}):(\d{2})/);if(m&&Number.isFinite(p.waitTime)){const s=(+m[1])*2+(+m[2]>=30?1:0);f[s]=p.waitTime;f[s+1]??=p.waitTime}}out[x.id]={name:x.name,now:x.status==='OPERATING'?x.queue?.STANDBY?.waitTime:null,status:x.status,f}}return out}catch{return {}}}
+function bestWindow(slots){let best=null;for(const [s,w] of slots){if(best==null||w<best.w)best={s,w}}return best}
+function planDay(rides,startSlot){ // greedy: always ride whatever is furthest below its own daily average right now
+ const left=rides.filter(r=>r.slots.size),out=[];let t=startSlot*30;
+ while(left.length&&t<24*60){const s=Math.floor(t/30);let pick=null,score=Infinity;for(const r of left){const w=near(r.slots,s);if(w==null)continue;const sc=w-r.avg*0.85;if(sc<score){score=sc;pick=r}}if(!pick){t+=30;continue}const w=near(pick.slots,s);out.push({r:pick,s,w});left.splice(left.indexOf(pick),1);t+=w+20}
+ return out}
+function near(map,s){if(map.has(s))return map.get(s);if(map.has(s-1)&&map.has(s+1))return Math.round((map.get(s-1)+map.get(s+1))/2);return null}
+async function load(){if(!setup())return;const seq=++reqSeq,parkId=$p('#spPark').value,date=$p('#spDate').value,at=+$p('#spTime').value,showAll=$p('#spShow').value==='all';
+ const status=$p('#spStatus'),list=$p('#spList'),plan=$p('#spPlan');status.textContent='Loading predictions…';list.replaceChildren();plan.replaceChildren();
+ $p('#spDays').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.textContent.startsWith('Day ')&&nextTrip()&&tripDays(nextTrip())[parseInt(b.textContent.slice(4))-1]===date));
+ const dest=destOfPark(parkId),destId=dest?.id||nextTrip()?.destId,tz=dest?.timezone||nextTrip()?.tz,isToday=date===todayIn(tz);
+ let rows=[],stat=null,err='';try{[rows,stat]=await Promise.all([rpc('predict_waits',{p_park:parkId,p_date:date}),destId?rpc('wait_prediction_status',{p_dest:destId}):null])}catch(e){err=e.message}
+ const live=isToday?await todayForecast(parkId):{};if(seq!==reqSeq)return;
+ const factor=isToday?1:crowdFactor(destId,date,stat?.sampled_days);const rides=new Map();
+ for(const r of rows||[]){let x=rides.get(r.ride_id);if(!x)rides.set(r.ride_id,x={id:r.ride_id,name:r.name,slots:new Map(),days:r.days,spread:new Map()});x.slots.set(r.slot,Math.round(r.wait*factor/5)*5);x.spread.set(r.slot,r.spread)}
+ for(const [id,l] of Object.entries(live)){if(!Object.keys(l.f).length)continue;let x=rides.get(id);if(!x)rides.set(id,x={id,name:l.name,slots:new Map(),days:0,spread:new Map()});for(const [s,w] of Object.entries(l.f)){const old=x.slots.get(+s);x.slots.set(+s,old==null?w:Math.round((w*0.6+old*0.4)/5)*5)}x.now=l.now;x.status=l.status}
+ const favs=new Set(state.favs?.[parkId]||[]);let shown=[...rides.values()].filter(r=>r.slots.size&&(showAll||!favs.size||favs.has(r.id)));
+ for(const r of shown){const v=[...r.slots.values()];r.avg=v.reduce((a,b)=>a+b,0)/v.length;r.best=bestWindow(r.slots)}
+ shown.sort((a,b)=>(favs.has(b.id)-favs.has(a.id))||(b.avg-a.avg));
+ const days=stat?.days||0,since=stat?.first_day?fmtDay(stat.first_day,{month:'short',day:'numeric'}):'';
+ status.textContent=err?err:!rows?.length&&!Object.keys(live).length?(days?'No history for this park yet. Check back after it has been open for a day.':'Still learning: wait history started collecting today. Predictions appear after the first park day, and get sharper every week.'):
+  `${isToday?'Today: park forecast blended with history':'Based on '+days+' day'+(days===1?'':'s')+' of wait history'+(since?' since '+since:'')}${!isToday&&factor!==1?` · adjusted ${factor>1?'up':'down'} ${Math.round(Math.abs(factor-1)*100)}% for expected crowds`:''}${days&&days<14&&!isToday?' · still learning, so treat these as rough':''}${!showAll&&!favs.size?' · showing all rides (no favorites picked for this park)':''}`;
+ if(!shown.length)return;
+ if(shown.length>1){const steps=planDay(shown.slice(0,showAll?12:20),Math.max(12,Math.min(...shown.flatMap(r=>[...r.slots.keys()]))));if(steps.length>1){const sum=steps.reduce((a,x)=>a+x.w,0),naive=steps.reduce((a,x)=>a+x.r.avg,0);const box=h('div','card');box.style.margin='12px 0 0';box.append(h('h3',null,'Suggested ride order'),h('p','sp-note',`About ${Math.round(sum)} min of waiting in total${naive-sum>=5?`, roughly ${Math.round(naive-sum)} min less than riding them at typical times`:''}. Allows about 20 min to ride and walk between each.`));const ol=h('ol','sp-plan');for(const x of steps)ol.append(h('li',null,`${slotLabel(x.s)} · ${x.r.name} · ~${x.w} min`));box.append(ol);plan.append(box)}}
+ for(const r of shown){const c=h('div','sp-ride');const atW=near(r.slots,at);const head=h('h3');head.append(h('span',null,(favs.has(r.id)?'★ ':'')+r.name),h('b',null,atW!=null?`~${atW} min at ${slotLabel(at)}`:'closed then'));c.append(head);
+  const keys=[...r.slots.keys()].sort((a,b)=>a-b),lo=keys[0],hi=keys[keys.length-1],max=Math.max(...r.slots.values(),10);const bars=h('div','sp-bars');
+  for(let s=lo;s<=hi;s++){const w=r.slots.get(s);const i=h('i');i.style.height=(w==null?0:Math.max(4,w/max*100))+'%';i.title=slotLabel(s)+(w==null?'':' · '+w+' min');if(r.best&&w===r.best.w)i.classList.add('best');if(s===at)i.classList.add('at');bars.append(i)}
+  const axis=h('div','sp-axis');axis.append(h('span',null,slotLabel(lo)),h('span',null,slotLabel(Math.round((lo+hi)/2))),h('span',null,slotLabel(hi)));
+  const sp=r.spread.get(at);c.append(bars,axis,h('p','sp-note',`Best: ${slotLabel(r.best.s)} (~${r.best.w} min) · Busiest: ${slotLabel([...r.slots].sort((a,b)=>b[1]-a[1])[0][0])} (~${Math.max(...r.slots.values())} min)${r.now!=null?` · Posted now: ${r.now} min`:r.status&&r.status!=='OPERATING'&&isToday?' · '+r.status.toLowerCase():''}${sp?` · usually ±${sp} min`:''}`));list.append(c)}}
+for(const id of ['#spPark','#spDate','#spTime','#spShow'])$p(id).addEventListener('change',load);
+const prevShow=showTab;showTab=function(t){prevShow(t);if(t==='predict')load()};
+
+/* ---- walking map: route for the chosen day, mile markers and distance traveled ---- */
+let marks=null,distBox=null,fitDay='';
+function routeMeters(pts){let m=0;for(let i=1;i<pts.length;i++)m+=hav({lat:pts[i-1][0],lng:pts[i-1][1]},{lat:pts[i][0],lng:pts[i][1]});return m}
+const prevDraw=drawPath;drawPath=function(){prevDraw();if(!map||!pathLayer||typeof L==='undefined')return;
+ const today=localHourKey(Date.now()).slice(0,10),day=walkDay||today,pts=walk.paths?.[day]||[];pathLayer.setLatLngs(pts);
+ if(!marks)marks=L.layerGroup().addTo(map);marks.clearLayers();
+ if(pts.length){L.circleMarker(pts[0],{radius:7,color:'#fff',weight:2,fillColor:'#5ee0a0',fillOpacity:1}).bindTooltip('Start').addTo(marks);if(pts.length>1)L.circleMarker(pts[pts.length-1],{radius:7,color:'#fff',weight:2,fillColor:'#ff6b8b',fillOpacity:1}).bindTooltip(day===today?'Latest':'Finish').addTo(marks);
+  let acc=0,next=1609.344,mile=1;for(let i=1;i<pts.length&&mile<100;i++){acc+=hav({lat:pts[i-1][0],lng:pts[i-1][1]},{lat:pts[i][0],lng:pts[i][1]});if(acc>=next){L.marker(pts[i],{icon:L.divIcon({className:'',html:`<span class="wk-mile">${mile} mi</span>`,iconSize:null}),interactive:false}).addTo(marks);mile++;next+=1609.344}}}
+ if(!distBox){const C=L.Control.extend({onAdd(){const d=L.DomUtil.create('div','wk-dist');L.DomEvent.disableClickPropagation(d);return d}});distBox=new C({position:'topright'}).addTo(map).getContainer()}
+ const route=routeMeters(pts),total=dayTotal(day),t=nextTrip(),td=t?tripDays(t):[],tripM=td.reduce((a,d)=>a+dayTotal(d),0);const steps=Math.round(Math.max(route,total)/0.75/100)*100;
+ distBox.innerHTML=`${day===today?'Today':fmtDay(day,{weekday:'short',month:'short',day:'numeric'})}: ${fmtMi(Math.max(total,route))}<small>${pts.length?'Route on map '+fmtMi(route):'No GPS route recorded this day'}${steps?' · ~'+steps.toLocaleString()+' steps':''}</small>${t&&td.length?`<small>${esc(t.name)}: ${fmtMi(tripM)} total</small>`:''}`;
+ if(pts.length>1&&fitDay!==day){fitDay=day;try{map.fitBounds(L.latLngBounds(pts),{padding:[30,30],maxZoom:18})}catch{}}};
+const prevStats=renderWalkStats;renderWalkStats=function(){prevStats();const sel=document.querySelector('#walkDaySel');if(sel){sel.onchange=e=>{walkDay=e.target.value;renderWalkStats();drawPath();document.querySelector('#map')?.scrollIntoView({behavior:'smooth',block:'center'})}}};
+})();

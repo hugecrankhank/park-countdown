@@ -78,3 +78,18 @@ select pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
 select public.claim_trip_share(:'ftoken');  -- stopped
 select 'export has share_links' t, public.export_my_account() ? 'share_links';
 reset role;
+
+-- wait predictions: collector ingests, anyone can read predictions, nobody can read raw tables
+reset role;
+select public.wait_collect();
+insert into net._http_response(id,status_code,content) select request_id,200,'{"timezone":"America/New_York","liveData":[{"id":"r1","name":"Space Mountain","entityType":"ATTRACTION","parkId":"mk","status":"OPERATING","queue":{"STANDBY":{"waitTime":60}}},{"id":"r2","name":"Closed ride","entityType":"ATTRACTION","parkId":"mk","status":"CLOSED","queue":{"STANDBY":{"waitTime":null}}}]}' from public.wait_fetches;
+select public.wait_collect();
+select 'ingested rides' t, count(*) from public.wait_rides;
+select public.wait_ingest('e957da41-3552-4cf6-b636-5babc5cbc4e5', now(), '{"timezone":"America/New_York","liveData":[{"id":"r1","name":"Space Mountain","entityType":"ATTRACTION","parkId":"mk","status":"OPERATING","queue":{"STANDBY":{"waitTime":30}}}]}');
+select 'profile n, mean' t, n, round(mean) from public.wait_profile where ride_id='r1';
+set role anon;
+select 'anon prediction' t, name, wait from public.predict_waits('mk', current_date) limit 1;
+select 'anon status' t, public.wait_prediction_status('e957da41-3552-4cf6-b636-5babc5cbc4e5')->>'days';
+select count(*) from public.wait_profile;  -- expect permission denied
+select public.wait_collect();               -- expect permission denied
+reset role;

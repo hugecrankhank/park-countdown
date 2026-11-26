@@ -26,6 +26,10 @@ async def main():
     await pg.goto('about:blank');await pg.goto('http://localhost:8765/index.html');await pg.wait_for_timeout(2500)
     g=await pg.inner_text('#planGuide');print('free guide:',g.replace('\n',' | '));assert 'See Plus' in g and 'Next:' not in g
     print('banner:',await pg.inner_text('#pcUpdateBanner'))
+    await pg.evaluate("renderWalkStats()");w=await pg.inner_text('#walkStats');print('free walking:',w.replace('\n',' | '));assert 'See Plus' in w
+    await pg.evaluate("document.querySelector('#tripForm').onsubmit(new Event('submit',{cancelable:true}))");await pg.wait_for_timeout(400)
+    v=await pg.evaluate("document.querySelector('#pcPortal').dataset.view+'|'+document.querySelector('#pcPortal').innerText.slice(0,200)");print('second trip:',v[:120].replace('\n',' | '));assert v.startswith('upgrade') and 'one upcoming trip' in v
+    await pg.click('.pc-home-btn');await pg.wait_for_timeout(300)
     await pg.click('.pc-menu-btn');await pg.click('#pcMenu button[data-tab=predict]');await pg.wait_for_timeout(1200)
     st=await pg.inner_text('#spStatus');print('free predictions:',st);assert 'part of Plus' in st
     await pg.click('#spStatus button');await pg.wait_for_timeout(500)
@@ -49,5 +53,6 @@ async def main():
     await pg.evaluate("async()=>{await new Promise(r=>{const q=indexedDB.open('parkCountdown');q.onsuccess=()=>{const tx=q.result.transaction('photos','readwrite');tx.objectStore('photos').clear();tx.oncomplete=r}});await new Promise(r=>{const q=indexedDB.open('parkCountdownResortArt');q.onsuccess=()=>{const tx=q.result.transaction('art','readwrite');tx.objectStore('art').clear();tx.oncomplete=r}})}")
     await pg.click('text=Restore from account');await pg.wait_for_timeout(1500)
     msg=await pg.evaluate("[...document.querySelectorAll('[data-panel=pictures] [role=status]')].map(e=>e.textContent).join(' / ')");print('restore:',msg);assert 'Restored 2 pictures' in msg
+    await pg.evaluate("renderWalkStats()");assert 'See Plus' not in await pg.inner_text('#walkStats')
     assert not errs,errs;print('PASS: upgrade prompts, beta Plus, shared-trip update, picture backup and restore');await b.close()
 asyncio.run(main())

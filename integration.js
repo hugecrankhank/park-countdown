@@ -613,6 +613,15 @@ function lockGuide(){if(!guide||guide.hidden)return;if(plus()){if(guide.dataset.
 const prevHome=renderHome;renderHome=function(){prevHome();try{lockGuide()}catch{}};
 window.addEventListener('parkaccount:tier',()=>{try{lockGuide()}catch{}try{refreshBackupUI()}catch{}});setTimeout(()=>{try{lockGuide()}catch{}},900);
 
+/* free accounts: one upcoming trip, and no walking tracker */
+try{const form=document.querySelector('#tripForm');if(form&&form.onsubmit){const base=form.onsubmit;form.onsubmit=function(e){let extra=false;try{extra=!editingId&&upcomingTrips().length>=1}catch{}if(extra&&!plus()){e.preventDefault();if(A())A().upgrade('Free accounts keep one upcoming trip. Plus lets you plan as many as you like.');else document.querySelector('#tripErr').textContent='Sign in and turn on Plus to plan more than one trip.';return}return base.call(this,e)}}}catch{}
+const lockCss=h('style');lockCss.textContent='#map.wk-locked .wk-dist,#map.wk-locked .wk-mile{display:none!important}';document.head.append(lockCss);
+function walkPrompt(){const box=document.querySelector('#walkStats');if(!box||box.querySelector('.wk-plus'))return;const p=h('div','wk-plus');const b=h('button','primary','See Plus');b.type='button';b.onclick=()=>A()&&A().upgrade('Distance tracking is part of Plus.');p.append(h('p','muted','Track your route, miles and steps for each park day with Plus.'),b);box.replaceChildren(p)}
+function lockWalk(){const m=document.querySelector('#map'),free=!plus();if(m)m.classList.toggle('wk-locked',free);const tb=document.querySelector('#trackBtn');if(free){walkPrompt();try{if(typeof pathLayer!=='undefined'&&pathLayer)pathLayer.setLatLngs([])}catch{}}return free}
+try{const baseTrack=startTracking;startTracking=function(){if(!plus()){if(A())A().upgrade('Distance tracking is part of Plus.');return}return baseTrack()};
+ const baseStats=renderWalkStats;renderWalkStats=function(){baseStats();lockWalk()};const baseDraw=drawPath;drawPath=function(){baseDraw();lockWalk()}}catch{}
+window.addEventListener('parkaccount:tier',()=>{try{renderWalkStats();drawPath()}catch{}});
+
 /* picture backup */
 const P=window.parkPictures;if(!P)return;const picturesIntro=P.intro,artTransaction=P.art,loadResortArt=P.loadArt,updatePictureCounts=P.counts;
 const box=h('section','card');box.dataset.panel='pictures';box.hidden=picturesIntro.hidden;const title=h('h2',null,'Account backup');title.style.marginTop='0';const status=h('p','muted');status.setAttribute('role','status');status.setAttribute('aria-live','polite');

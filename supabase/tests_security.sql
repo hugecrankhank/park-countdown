@@ -162,3 +162,17 @@ select 'applied' t, jsonb_array_length(public.apply_share_update(:'ftrip'::uuid)
 select 'F trip updated, no budget' t, t.title, (s.payload#>>'{details,budget}') from public.account_trips t join public.account_sync_snapshots s on s.trip_id=t.id where t.id=:'ftrip'::uuid;
 select public.apply_share_update(:'ftrip'::uuid);  -- expect none waiting
 reset role;
+
+-- planner link updates: free user F is given Plus, shares with planner P, then pushes an update
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select public.admin_set_plus('00000000-0000-0000-0000-0000000000f1', null);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
+select public.create_trip_share(:'ftrip'::uuid,'planner','{"schema":1,"days":{},"details":{"plans":[],"budget":100}}'::jsonb,'Fran') as pl2 \gset
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select 'planner adds F' t, public.claim_trip_share(:'pl2')->>'kind';
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
+select 'pushed to planners' t, public.push_trip_share_update((select id from public.my_trip_shares() where audience='planner' limit 1),'{"schema":1,"days":{},"details":{"plans":[],"budget":250}}'::jsonb,'Budget went up');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select 'planner sees update' t, traveler_note, traveler_plan#>>'{details,budget}' from public.planner_clients where client_name='Fran';
+reset role;
+

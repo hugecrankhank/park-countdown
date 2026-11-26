@@ -27,3 +27,5 @@
 .pc-shared-plan summary{cursor:pointer;font-weight:600;min-height:32px}
 .pc-shared-plan h4{margin:10px 0 2px}
 .pc-share .pc-choice{flex:1 1 220px}
+.pc-qr-save{margin:10px 0;text-align:center}
+.pc-qr-save img{width:min(280px,100%);height:auto;background:#fff;border-radius:12px;-webkit-touch-callout:default;user-select:auto}

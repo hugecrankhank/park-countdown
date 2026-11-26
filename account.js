@@ -289,7 +289,15 @@ function connectAuth(){
   finally{authBoot=null;updateAuthControls()}
  })();return authBoot;
 }
-function init(){if(pendingShare){intent='share';openPortal('share')}else if(pending||!deviceAllowed()||!storage('parkCountdown.portal.entered'))openPortal(pending?'booked':'welcome');connectAuth()}
+// Opening screen: travel planners land on their dashboard; anyone with a trip saved on this device lands on the countdown.
+// Only applied while the person hasn't tapped anything yet, so it never yanks them away from where they went.
+let untouched=true;['pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,()=>{untouched=false},{capture:true,once:true}));
+function hasLocalTrip(){try{return Array.isArray(state?.trips)&&state.trips.length>0}catch{return false}}
+function homeOpen(){const t=document.querySelector('.tabs button.on');return root.hidden&&(!t||t.dataset.tab==='home')}
+async function startupRoute(){if(pendingShare||pending||recovery)return;
+ if(user){try{await refreshPlannerAccess()}catch{}if(untouched&&approved&&(homeOpen()||['welcome','dashboard'].includes(view))){intent='planner';openPortal('planner');return}}
+ if(untouched&&!root.hidden&&['welcome','dashboard'].includes(view)&&hasLocalTrip()&&deviceAllowed())openApp('home')}
+function init(){if(pendingShare){intent='share';openPortal('share')}else if(pending)openPortal('booked');else if(hasLocalTrip()&&deviceOwners().size===0)storage('parkCountdown.portal.entered','1');else if(!deviceAllowed()||!storage('parkCountdown.portal.entered'))openPortal('welcome');const boot=connectAuth();if(boot&&boot.then)boot.then(startupRoute,()=>{})}
 setInterval(()=>{refreshCollaborationStatus();refreshNotifications();},45000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshCollaborationStatus();refreshNotifications()}});
 window.addEventListener('storage',e=>{if([DEVICE_OWNER_KEY,LINK_KEY,'parkCountdown.account.snapshots.v1'].includes(e.key)&&!deviceAllowed()&&root.hidden){message('Local plans are locked.');openPortal('welcome')}});

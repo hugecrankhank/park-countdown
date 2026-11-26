@@ -6,10 +6,8 @@
 
 export const BLOGS = [
   { name: "Disney Parks Blog", url: "https://disneyparksblog.com/feed/" },
-  { name: "WDW News Today", url: "https://wdwnt.com/feed/" },
   { name: "Disney Food Blog", url: "https://www.disneyfoodblog.com/feed/" },
   { name: "BlogMickey", url: "https://blogmickey.com/feed/" },
-  { name: "AllEars", url: "https://allears.net/feed/" },
   { name: "Disney Tourist Blog", url: "https://www.disneytouristblog.com/feed/" },
   { name: "TouringPlans", url: "https://touringplans.com/blog/feed/" },
 ];

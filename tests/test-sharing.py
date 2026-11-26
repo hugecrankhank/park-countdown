@@ -47,7 +47,7 @@ async def main():
     client=dict(id='c1',planner_id='u-p',agency_id=None,client_name='Robert',client_email='a@test.com',title=TRIP['title'],arrival='2027-01-27',departure='2027-02-01',resort=TRIP['resort'],destination='Walt Disney World (Florida)',party_size=2,notes='Room near monorail',reservations=[],revision=1,customer_id=None,traveler_plan=dict(PLAN,details=dict(PLAN['details'],expenses=[{'id':'e','name':'Park tickets','amount':1200}],budget=5000)),shared_by='u-a')
     st3={'user':{'id':'u-p','email':'p@test.com'},'tables':{'planner_access':[{'user_id':'u-p'}],'planner_clients':[client],'agency_members':[],'customer_profiles':[],'travel_agencies':[]},'rpc':{}}
     pg,errs=await page(b,st3,'http://localhost:8765/index.html')
-    await pg.click('.pc-account-btn');await pg.wait_for_timeout(1000);await pg.click('text=Travel planner');await pg.wait_for_timeout(1500)
+    print('planner opens on:',await pg.evaluate("document.querySelector('#pcPortal').dataset.view"));await pg.wait_for_timeout(1500)
     await pg.click('text=View traveler’s day plan');await pg.wait_for_timeout(200)
     print('planner card:',(await pg.locator('#pc-clients article').first.inner_text())[:700].replace('\n',' | '))
     print('errors:',errs)

@@ -655,3 +655,50 @@ backupBtn.onclick=()=>{if(!uid()){A()?.signIn();return}backup(false)};restoreBtn
 P.afterImport(()=>{if(uid()&&plus())backup(true)});
 refreshBackupUI();setTimeout(refreshBackupUI,1500);
 })();
+
+/* ---------- Import from My Disney Experience (Trips) ---------- */
+(()=>{'use strict';
+const panel=document.querySelector('[data-panel="trips"]'),form=document.querySelector('#tripForm');if(!panel||!form||!window.MDXImport)return;
+const h=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n};
+const WDW='e957da41-3552-4cf6-b636-5babc5cbc4e5',CKEY='parkCountdown.v2.preview';
+const css=h('style');css.textContent=`.mdx-card{border:1px solid var(--gold);border-radius:16px;padding:14px;margin:0 0 16px}.mdx-card h3{margin:0 0 4px}.mdx-card ol{margin:8px 0;padding-left:20px}.mdx-card li{margin:4px 0}.mdx-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.mdx-preview{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.mdx-preview ul{margin:6px 0;padding-left:18px}.mdx-preview li{margin:3px 0}.mdx-card textarea{width:100%;min-height:120px;margin-top:8px;box-sizing:border-box}`;document.head.append(css);
+const card=h('section','mdx-card');card.innerHTML=`<h3>Import from My Disney Experience</h3><p class="muted" style="margin:0">Bring in your hotel, dates, park days and dining in one go.</p>
+<ol class="muted" style="font-size:.9rem"><li>On disneyworld.com, sign in and open <b>My Plans</b>.</li><li>Save the page as a PDF (Share › Print › Save to Files on iPhone, or Print › Save as PDF on a computer).</li><li>Choose that PDF here.</li></ol>
+<div class="mdx-row"><button type="button" class="primary" id="mdxPick">Choose My Plans PDF</button><button type="button" id="mdxPasteBtn">Paste text instead</button></div>
+<div id="mdxPaste" hidden><label for="mdxText">Paste the text of your My Plans page</label><textarea id="mdxText" autocomplete="off" spellcheck="false"></textarea><div class="mdx-row"><button type="button" id="mdxRead">Read pasted text</button></div></div>
+<p class="muted" id="mdxStatus" role="status" aria-live="polite" style="margin:8px 0 0"></p><div id="mdxPreview" class="mdx-preview" hidden></div>
+<p class="muted" style="font-size:.8rem;margin:10px 0 0">Your file is read on this device and never uploaded.</p>`;
+panel.insertBefore(card,form);
+const $c=s=>card.querySelector(s),status=$c('#mdxStatus'),preview=$c('#mdxPreview');
+const input=h('input');input.type='file';input.accept='application/pdf,.pdf,text/plain,.txt';input.hidden=true;card.append(input);
+$c('#mdxPick').onclick=()=>input.click();$c('#mdxPasteBtn').onclick=()=>{$c('#mdxPaste').hidden=!$c('#mdxPaste').hidden;if(!$c('#mdxPaste').hidden)$c('#mdxText').focus()};
+input.onchange=async()=>{const f=input.files?.[0];input.value='';if(!f)return;status.textContent='Reading '+(f.name||'your file')+'…';preview.hidden=true;try{show(MDXImport.parse(await MDXImport.readFile(f)))}catch(e){status.textContent='That file could not be read: '+(e?.message||'try again')+'. You can paste the text instead.'}};
+$c('#mdxRead').onclick=()=>{const t=$c('#mdxText').value;if(!t.trim()){status.textContent='Paste the text of your My Plans page first.';return}show(MDXImport.parse(t))};
+const fmt=d=>d?new Date(d+'T00:00:00Z').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',timeZone:'UTC'}):'';
+const t12=t=>t?new Date(2000,0,1,+t.slice(0,2),+t.slice(3)).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'';
+async function parkList(){if(!parksForDest(WDW).length){try{await loadDestinations()}catch{}}return parksForDest(WDW)}
+function overlapping(r){return state.trips.filter(t=>t.destId===WDW&&t.date<=r.hotel.departure&&(t.endDate||t.date)>=r.hotel.arrival)}
+let result=null;
+function show(r){result=r;preview.replaceChildren();if(!r.found||!r.hotel?.arrival||!r.hotel?.departure){status.textContent='No trip was found in that. Make sure it is the My Plans page from disneyworld.com, with your reservations showing.';preview.hidden=true;return}
+ status.textContent='';const parkDays=Object.keys(r.days).length,dining=r.reservations.filter(x=>x.kind==='Dining').length,other=r.reservations.length-dining;
+ preview.append(h('b',null,`${r.hotel.name||'Your stay'} · ${fmt(r.hotel.arrival)} – ${fmt(r.hotel.departure)}`),h('p','muted',[r.partySize?r.partySize+' guests':'',r.hotel.checkIn?'check-in '+t12(r.hotel.checkIn):'',`${parkDays} park day${parkDays===1?'':'s'}`,`${dining} dining reservation${dining===1?'':'s'}`,other?`${other} other plan${other===1?'':'s'}`:''].filter(Boolean).join(' · ')));
+ const ul=h('ul');for(const d of [...new Set([...Object.keys(r.days),...r.reservations.map(x=>x.date)])].filter(Boolean).sort()){const li=h('li');li.append(h('b',null,fmt(d)+(r.days[d]?' · '+r.days[d].join(' + '):'')));for(const x of r.reservations.filter(x=>x.date===d))li.append(h('div','muted',`${t12(x.time)} ${x.title}`));ul.append(li)}preview.append(ul);
+ for(const w of r.warnings)preview.append(h('p','muted',w));
+ const ov=overlapping(r),sel=h('select');sel.id='mdxTarget';for(const t of ov){const o=h('option',null,'Update “'+t.name+'”');o.value=t.id;sel.append(o)}const o=h('option',null,'Add as a new trip');o.value='';sel.append(o);
+ if(ov.length){const lab=h('label',null,'Put it in');lab.htmlFor='mdxTarget';preview.append(lab,sel)}
+ const go=h('button','primary',ov.length?'Import':'Add this trip');go.type='button';go.onclick=()=>apply(r,ov.length?sel.value:'').catch(e=>{status.textContent='Import did not finish: '+(e?.message||'try again')+'.'});const cancel=h('button',null,'Cancel');cancel.type='button';cancel.onclick=()=>{preview.hidden=true;result=null};const row=h('div','mdx-row');row.append(go,cancel);preview.append(row);preview.hidden=false;preview.scrollIntoView({behavior:'smooth',block:'nearest'})}
+async function apply(r,targetId){const A=window.parkAccount,plus=!!(A&&A.plus());let t=targetId&&state.trips.find(x=>x.id===targetId);
+ if(!t&&!plus&&upcomingTrips().length>=1){if(A)A.upgrade('Free accounts keep one upcoming trip. Choose “Update” to import into your current trip, or turn on Plus for more trips.');else status.textContent='Free accounts keep one upcoming trip. Choose “Update” to import into it.';return}
+ const parks=await parkList(),dest=RESORTS.find(x=>x.id===WDW),missed=[];
+ if(!t){t={id:crypto.randomUUID?.()||String(Date.now()),name:(r.hotel.name?r.hotel.name.replace(/^Disney'?s\s+/i,'')+' trip':'Disney World trip').slice(0,80),days:{}};state.trips.push(t)}
+ Object.assign(t,{date:r.hotel.arrival,endDate:r.hotel.departure,time:r.hotel.checkIn||t.time||'15:00',destId:WDW,destName:dest?.name||'Walt Disney World (Florida)',tz:dest?.tz||'America/New_York'});
+ t.days=Object.fromEntries(Object.entries(t.days||{}).filter(([d])=>d>=t.date&&d<=t.endDate));state.parks=state.parks||{};
+ for(const [d,names] of Object.entries(r.days)){if(d<t.date||d>t.endDate)continue;const ids=[];for(const n of names){const p=MDXImport.matchPark(n,parks);if(p){ids.push(p.id);if(!state.parks[p.id])state.parks[p.id]={name:p.name,destName:dest?.name||'Walt Disney World'}}else missed.push(n)}if(ids.length)t.days[d]={...(t.days[d]||{}),parks:[...new Set(ids)]}}
+ // dining and other reservations go into the trip's day plans; re-importing updates them instead of doubling up
+ let added=0;try{const v=JSON.parse(localStorage.getItem(CKEY)||'{}');v.data=v.data&&typeof v.data==='object'?v.data:{};const d=v.data[t.id]=v.data[t.id]&&typeof v.data[t.id]==='object'?v.data[t.id]:{};const plans=Array.isArray(d.plans)?d.plans:[];
+  for(const x of r.reservations){const note=[x.confirmation&&'Confirmation '+x.confirmation,x.guests&&x.guests+' guests',x.area].filter(Boolean).join(' · ');const key=x.confirmation?p=>String(p.note||'').includes('Confirmation '+x.confirmation):p=>p.date===x.date&&p.time===x.time&&p.name===x.title;const row={date:x.date,time:x.time,name:x.title.slice(0,120),kind:x.kind==='Dining'?'Dining':'Activity',park:x.park||'',note:note.slice(0,300),done:false};const old=plans.find(key);if(old)Object.assign(old,row);else{plans.push({id:crypto.randomUUID?.()||String(Date.now()+added),...row});added++}}
+  d.plans=plans;localStorage.setItem(CKEY,JSON.stringify(v))}catch(e){console.warn('mdx plans',e)}
+ state.homeTripId=t.id;homeDay=null;save();try{resetTripForm()}catch{}renderTrips();renderHero();renderHome();document.querySelectorAll('iframe.v27-frame').forEach(f=>{try{f.contentWindow.location.reload()}catch{}});
+ preview.hidden=true;result=null;const parkDays=Object.keys(t.days).length;status.textContent=`Imported “${t.name}”: ${parkDays} park day${parkDays===1?'':'s'} and ${r.reservations.length} reservation${r.reservations.length===1?'':'s'}${added<r.reservations.length?' (updated ones you already had)':''}.${missed.length?' Could not match: '+[...new Set(missed)].join(', ')+'.':''}`;
+ const b=h('button','primary','See it on Home');b.type='button';b.style.marginLeft='8px';b.onclick=()=>showTab('home');status.append(b)}
+})();

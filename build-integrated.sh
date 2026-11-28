@@ -18,10 +18,11 @@ if [[ "$actual" != "$EXPECTED" ]]; then
   echo "Unexpected original HTML blob: $actual (expected $EXPECTED)" >&2
   exit 1
 fi
-for file in apple-touch-icon.png apple-touch-icon-bw.png version.txt companion.html companion.js integration.js manifest.webmanifest icon-192.png icon-512.png sw-integrated.js account.js account.css qr-local.js; do
+for file in apple-touch-icon.png apple-touch-icon-bw.png version.txt companion.html companion.js integration.js manifest.webmanifest icon-192.png icon-512.png sw-integrated.js account.js account.css qr-local.js mdx-import.js; do
   if [[ ! -f "$file" ]]; then echo "Required file missing at repository root: $file" >&2; exit 1; fi
   cp "$file" dist/
 done
+mkdir -p dist/vendor/pdfjs && cp vendor/pdfjs/* dist/vendor/pdfjs/
 cp dist/sw-integrated.js dist/sw.js
 node configure-accounts.cjs dist/account-config.js
 node patch-original.cjs dist/index.html

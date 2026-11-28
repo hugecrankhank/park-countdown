@@ -187,3 +187,10 @@ select 'client contact saved' t, client_phone, jsonb_array_length(reservations) 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
 select 'other user sees Dana' t, count(*) from public.planner_clients where client_name='Dana';
 reset role;
+
+-- an imported hotel stay (end date and check-in time) passes the reservation rules
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+update public.planner_clients set reservations = reservations || '[{"id":"33333333-3333-4333-8333-333333333333","kind":"Resort / hotel","status":"Confirmed","title":"Disney''s Contemporary Resort","provider":"","location":"","confirmation":"91000000","details":"2 guests","date":"2027-04-01","end_date":"2027-04-03","due_date":"","time":"15:00","cost_cents":0,"paid_cents":0}]'::jsonb where client_name='Dana';
+select 'imported hotel accepted' t, jsonb_array_length(reservations) from public.planner_clients where client_name='Dana';
+reset role;

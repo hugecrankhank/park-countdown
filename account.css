@@ -36,3 +36,6 @@
 .pc-menu .pc-menu-head{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);padding:8px 6px 0}
 .pc-menu{max-height:calc(100vh - 150px);overflow:auto;-webkit-overflow-scrolling:touch}
 .pc-update-banner{display:block;width:100%;text-align:left;margin:0 0 12px;padding:12px 14px;border:1px solid var(--gold);border-radius:14px;background:#f5c86b1f;color:inherit;font-weight:600;white-space:normal}
+.pc-day-row{display:grid;grid-template-columns:104px 1fr;gap:10px;align-items:center;margin:6px 0}
+.pc-day-row label{margin:0}
+.pc-dining-row{border:1px solid var(--line);border-radius:12px;padding:10px;margin:8px 0;display:flex;flex-direction:column;gap:8px}

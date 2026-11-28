@@ -2,7 +2,7 @@
 (function(){
 const S=()=>JSON.parse(localStorage.getItem('fakesb')||'{}');const W=s=>localStorage.setItem('fakesb',JSON.stringify(s));
 function q(table){let rows=()=> (S().tables?.[table]||[]);let filters=[];let single=false,maybe=false;
- const api={select(){return api},order(){return api},eq(k,v){filters.push(r=>r[k]===v);return api},is(k,v){filters.push(r=>r[k]==null);return api},
+ const api={insert(payload){const st=S();(st.calls=st.calls||[]).push({name:'insert:'+table,args:payload});st.tables=st.tables||{};(st.tables[table]=st.tables[table]||[]).push(Object.assign({id:'new-'+Date.now(),revision:1},payload));W(st);return Promise.resolve({data:null,error:null})},select(){return api},order(){return api},eq(k,v){filters.push(r=>r[k]===v);return api},is(k,v){filters.push(r=>r[k]==null);return api},
   single(){single=true;return api},maybeSingle(){maybe=true;return api},
   then(res,rej){let out=rows().filter(r=>filters.every(f=>f(r)));let data=single||maybe?(out[0]||null):out;if(single&&!data)return Promise.resolve({data:null,error:{message:'not found'}}).then(res,rej);return Promise.resolve({data,error:null}).then(res,rej)}};return api}
 window.__mem=window.__mem||{};window.supabase={createClient(){const s=S();return{

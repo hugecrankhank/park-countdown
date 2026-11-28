@@ -176,3 +176,14 @@ select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select 'planner sees update' t, traveler_note, traveler_plan#>>'{details,budget}' from public.planner_clients where client_name='Fran';
 reset role;
 
+
+-- planner client contact details and park-day / dining reservations
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+insert into public.planner_clients(client_name,client_email,title,arrival,departure,client_phone,client_address,travelers,reservations)
+ values ('Dana','dana@test.com','Dana trip','2027-04-01','2027-04-03','334-555-0100','1 Main St','Dana 40, Sam 9',
+ '[{"id":"11111111-1111-4111-8111-111111111111","kind":"Park day","status":"Planned","title":"Magic Kingdom Park","provider":"","location":"","confirmation":"","details":"","date":"2027-04-02","end_date":"","due_date":"","time":"","cost_cents":0,"paid_cents":0},{"id":"22222222-2222-4222-8222-222222222222","kind":"Dining","status":"Confirmed","title":"Be Our Guest","provider":"","location":"","confirmation":"ABC123","details":"","date":"2027-04-02","end_date":"","due_date":"","time":"18:15","cost_cents":0,"paid_cents":0}]'::jsonb);
+select 'client contact saved' t, client_phone, jsonb_array_length(reservations) from public.planner_clients where client_name='Dana';
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
+select 'other user sees Dana' t, count(*) from public.planner_clients where client_name='Dana';
+reset role;

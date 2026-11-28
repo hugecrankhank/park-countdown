@@ -25,7 +25,13 @@ function clean(s){return String(s||'').replace(/[   ]/g,' ').replace(/[​-
 function mealKind(title){return /\b(breakfast|brunch|lunch|dinner|dining|character meal|tea|dessert party|dine)\b/i.test(title)?'Dining':'Other'}
 
 function parse(text){
- const lines=String(text||'').split(/\r?\n/).map(clean).filter(Boolean);
+ const lines=[];for(let raw of String(text||'').split(/\r?\n/)){let l=clean(raw);if(!l)continue;
+  l=l.replace(/\b(Hide|Show) Park Hours\b/gi,'\n').replace(/\b(Show|Hide) Details\b/gi,'\n').replace(/\b(Change|Cancel|Modify) Reservation\b/gi,'\n')
+   .replace(/(Park Hours:?)\s*/gi,'\n$1\n').replace(/(?:^|\s)(Reservation:)\s*/gi,'\n$1\n').replace(/\s*(Confirmation (?:Number|#):?)\s*/gi,'\n$1 ').replace(/\s+(\d{1,2} Guests?)\b/gi,'\n$1')
+   .replace(/(Check[- ]?in after:?|Check[- ]?out before:?)\s*/gi,'\n$1\n').replace(/^(\s*(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*,?\s+[A-Z][a-z]{2,8}\.?\s+\d{1,2}(?:,\s*\d{4})?)(?!\s*[–—-])\s+(?=\S)/,'$1\n')
+   .replace(/(\d{1,2}:\d{2}\s*[AP]\.?M\.?)\s+(?=[A-Z])/gi,'$1\n');
+  for(const part of l.split('\n')){const c=clean(part);if(c)lines.push(c)}}
+ for(let i=0;i<lines.length;i++){const m=lines[i].match(/^Confirmation (?:Number|#):?$/i);if(m&&lines[i+1]&&/^[A-Za-z0-9-]{3,40}$/.test(lines[i+1])){lines[i]='Confirmation Number: '+lines[i+1];lines.splice(i+1,1)}}
  const out={hotel:null,days:{},reservations:[],party:[],warnings:[]};
  let baseYear=0,baseMonth=0,current='';
  // Find the year first: the hotel's date range, else the "upcoming reservation" line.
@@ -72,7 +78,7 @@ function linesFromItems(items){
  return out.join('\n')}
 
 let pdfLib=null;
-async function pdfText(file){if(!pdfLib){pdfLib=await import(new URL('vendor/pdfjs/pdf.min.mjs',document.baseURI).href);pdfLib.GlobalWorkerOptions.workerSrc=new URL('vendor/pdfjs/pdf.worker.min.mjs',document.baseURI).href}
+async function pdfText(file){if(!pdfLib){pdfLib=await import(new URL('vendor/pdfjs/pdf.min.js',document.baseURI).href);pdfLib.GlobalWorkerOptions.workerSrc=new URL('vendor/pdfjs/pdf.worker.min.js',document.baseURI).href}
  const data=new Uint8Array(await file.arrayBuffer());const task=pdfLib.getDocument({data,isEvalSupported:false,enableXfa:false}),doc=await task.promise;try{if(doc.numPages>40)throw Error('That PDF is too long to be a My Plans page.');const pages=[];for(let p=1;p<=doc.numPages;p++){const page=await doc.getPage(p);pages.push(linesFromItems((await page.getTextContent()).items))}return pages.join('\n')}finally{try{await task.destroy()}catch{}}}
 async function readFile(file){if(!file)throw Error('Choose a file first.');if(file.size>25*1024*1024)throw Error('That file is too large.');const isPdf=/pdf$/i.test(file.type)||/\.pdf$/i.test(file.name||'');return isPdf?pdfText(file):file.text()}
 

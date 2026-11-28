@@ -11,6 +11,32 @@ assert.deepEqual(r.reservations.map(x=>[x.date,x.time,x.kind]),[['2027-01-28','1
 assert.equal(r.reservations[0].place,'Be Our Guest Restaurant');assert.equal(r.reservations[1].guests,3);assert.ok(/^9\d+$/.test(r.reservations[0].confirmation));
 assert.deepEqual(r.party.map(p=>[p.name,p.me,p.age]),[['Alex Q Sample',true,''],['Jordan Q Sample',false,'18+']]);
 assert.equal(r.partySize,2);
+// text copied from the website or app, where labels and values share a line
+const copied=`Alex's Plans and Tickets
+My Planning Party
+Mr. Alex Q Sample
+Me
+Wed, Jan 27 Check in after: 3:00 PM
+Disney's Contemporary Resort
+Magic Kingdom Resort Area
+Wed, Jan 27, 2027 – Mon, Feb 1, 2027
+Confirmation Number: 91000000 2 Guests Show Details
+Thu, Jan 28 Hide Park Hours
+Magic Kingdom Park Park Hours: 9:00 AM – 9:00 PM
+Reservation: 5:40 PM Be Our Guest Dinner
+Magic Kingdom Park
+Fantasyland
+Be Our Guest Restaurant
+Confirmation Number:
+91000002
+2 Guests Change Reservation Cancel Reservation
+Fri, Jan 29
+EPCOT Park Hours: 9:00 AM – 9:00 PM
+Mon, Feb 1 Check out before: 11:00 AM`;
+const c=parse(copied);
+assert.deepEqual(c.hotel,{name:"Disney's Contemporary Resort",arrival:'2027-01-27',departure:'2027-02-01',confirmation:'91000000',guests:2,checkIn:'15:00',checkOut:'11:00'});
+assert.deepEqual(c.days,{'2027-01-28':['Magic Kingdom Park'],'2027-01-29':['EPCOT']});
+assert.deepEqual(c.reservations.map(x=>[x.date,x.time,x.title,x.place,x.confirmation,x.guests]),[['2027-01-28','17:40','Be Our Guest Dinner','Be Our Guest Restaurant','91000002',2]]);
 // across the new year: no year on the day headers
 const y=parse("Sat, Dec 30\nMagic Kingdom Park\nPark Hours:\nMon, Jan 1\nEPCOT\nPark Hours:\nYour upcoming reservation on December 30, 2026");
 assert.deepEqual(Object.keys(y.days),['2026-12-30','2027-01-01']);

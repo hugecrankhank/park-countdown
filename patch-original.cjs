@@ -63,5 +63,5 @@ fs.writeFileSync(companionFile,companion.replace('src="companion.js"',`src="comp
 fs.writeFileSync(swFile,sw.replaceAll('__BUILD_VERSION__',build));
 fs.writeFileSync(path.join(dir,'version.txt'),build+'\n');
 // Cloudflare Pages: ensure app shell and release check are revalidated, not pinned by HTTP cache.
-fs.writeFileSync(path.join(dir,'_headers'),['/','/index.html','/version.txt','/sw.js','/integration.js','/companion.html','/companion.js','/manifest.webmanifest','/account.css','/account.js','/account-config.js','/qr-local.js','/mdx-import.js'].map(p=>p+'\n  Cache-Control: no-cache, must-revalidate\n').join(''));
+fs.writeFileSync(path.join(dir,'_headers'),['/','/index.html','/version.txt','/sw.js','/integration.js','/companion.html','/companion.js','/manifest.webmanifest','/account.css','/account.js','/account-config.js','/qr-local.js','/mdx-import.js'].map(p=>p+'\n  Cache-Control: no-cache, must-revalidate\n').join('')+'/vendor/pdfjs/*.js\n  Content-Type: text/javascript; charset=utf-8\n  Cache-Control: public, max-age=86400\n');
 console.log('Generated update version: '+build);

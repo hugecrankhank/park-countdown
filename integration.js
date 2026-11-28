@@ -672,7 +672,7 @@ panel.insertBefore(card,form);
 const $c=s=>card.querySelector(s),status=$c('#mdxStatus'),preview=$c('#mdxPreview');
 const input=h('input');input.type='file';input.accept='application/pdf,.pdf,text/plain,.txt';input.hidden=true;card.append(input);
 $c('#mdxPick').onclick=()=>input.click();$c('#mdxPasteBtn').onclick=()=>{$c('#mdxPaste').hidden=!$c('#mdxPaste').hidden;if(!$c('#mdxPaste').hidden)$c('#mdxText').focus()};
-input.onchange=async()=>{const f=input.files?.[0];input.value='';if(!f)return;status.textContent='Reading '+(f.name||'your file')+'…';preview.hidden=true;try{show(MDXImport.parse(await MDXImport.readFile(f)))}catch(e){status.textContent='That file could not be read: '+(e?.message||'try again')+'. You can paste the text instead.'}};
+input.onchange=async()=>{const f=input.files?.[0];input.value='';if(!f)return;status.textContent='Reading '+(f.name||'your file')+'…';preview.hidden=true;try{show(MDXImport.parse(await MDXImport.readFile(f)))}catch(e){console.warn('mdx import',e);status.textContent='That file could not be read ('+(e?.message||e||'unknown error')+'). Try “Paste text instead”: open My Plans, select all, copy, and paste it here.'}};
 $c('#mdxRead').onclick=()=>{const t=$c('#mdxText').value;if(!t.trim()){status.textContent='Paste the text of your My Plans page first.';return}show(MDXImport.parse(t))};
 const fmt=d=>d?new Date(d+'T00:00:00Z').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',timeZone:'UTC'}):'';
 const t12=t=>t?new Date(2000,0,1,+t.slice(0,2),+t.slice(3)).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'';
